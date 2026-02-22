@@ -1,0 +1,9 @@
+/**
+ * Hooks — GeoGan
+ *
+ * Carpeta para custom hooks reutilizables.
+ * Ejemplos futuros:
+ * - useAnimales.js  → TanStack Query hook para CRUD de animales
+ * - usePesajes.js   → TanStack Query hook para pesajes y cálculo de GMD
+ * - useAuth.js      → Wrapper sobre authStore para lógica de permisos
+ */
