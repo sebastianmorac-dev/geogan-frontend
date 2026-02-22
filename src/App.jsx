@@ -2,14 +2,16 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import RegisterAnimalPage from './pages/RegisterAnimalPage';
 
 /**
  * App — GeoGan
  *
  * Enrutamiento principal de la aplicación.
- * - /login          → Página de login (pública)
- * - /dashboard      → Dashboard (protegido por ProtectedRoute)
- * - /               → Redirige a /dashboard
+ * - /login              → Página de login (pública)
+ * - /dashboard          → Dashboard (protegido)
+ * - /registrar-animal   → Registro de animales (protegido)
+ * - /                   → Redirige a /dashboard
  */
 export default function App() {
   return (
@@ -20,6 +22,7 @@ export default function App() {
       {/* Rutas protegidas */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/registrar-animal" element={<RegisterAnimalPage />} />
       </Route>
 
       {/* Fallback → dashboard (si autenticado) o login (si no) */}

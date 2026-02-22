@@ -15,14 +15,14 @@ const useAuthStore = create(
     persist(
         (set, get) => ({
             // --- Estado ---
-            user: null, // { usuario_id: number, nombre: string, rol: string, email: string } | null
+            user: null, // { usuario_id: number, nombre: string, rol: string, email: string, id_finca: number|null } | null
             isAuthenticated: false,
 
             // --- Acciones ---
 
             /**
              * Establece el usuario autenticado.
-             * @param {{ usuario_id: number, nombre: string, rol: string, email: string }} userData
+             * @param {{ usuario_id: number, nombre: string, rol: string, email: string, id_finca?: number }} userData
              */
             login: (userData) =>
                 set({
@@ -31,6 +31,7 @@ const useAuthStore = create(
                         nombre: userData.nombre,
                         rol: userData.rol,
                         email: userData.email,
+                        id_finca: userData.id_finca ?? null,
                     },
                     isAuthenticated: true,
                 }),
@@ -62,6 +63,20 @@ const useAuthStore = create(
             canDeleteAnimals: () => {
                 const { user } = get();
                 return user?.rol === 'propietario' || user?.rol === 'superadmin';
+            },
+
+            /**
+             * Verifica si el usuario puede registrar animales.
+             * Roles permitidos: propietario, encargado, superadmin.
+             * @returns {boolean}
+             */
+            canRegisterAnimals: () => {
+                const { user } = get();
+                return (
+                    user?.rol === 'propietario' ||
+                    user?.rol === 'encargado' ||
+                    user?.rol === 'superadmin'
+                );
             },
         }),
         {

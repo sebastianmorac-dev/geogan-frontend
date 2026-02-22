@@ -42,12 +42,15 @@ export default function DashboardPage() {
 
                 {/* Placeholder de módulos */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
+                    <div
+                        onClick={() => navigate('/registrar-animal')}
+                        className="bg-gray-800 rounded-xl p-6 border border-gray-700 cursor-pointer hover:border-emerald-600 hover:bg-gray-750 transition-all duration-200"
+                    >
                         <h2 className="text-lg font-semibold text-white mb-2">
                             📋 Registro de Animales
                         </h2>
                         <p className="text-gray-400 text-sm">
-                            Módulo próximo: formulario con React Hook Form + Zod
+                            Registrar nuevo ganado en el inventario
                         </p>
                     </div>
                     <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
