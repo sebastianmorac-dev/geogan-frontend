@@ -8,33 +8,38 @@ import { persist } from 'zustand/middleware';
  * en localStorage para resistir recargas de página (crítico en
  * zonas de baja conectividad).
  *
- * Convención: se usa snake_case (usuario_id, nombre, rol, email)
+ * Convención: se usa snake_case (usuario_id, nombre, rol, token)
  * para mantener simetría con los schemas Pydantic del backend.
  */
 const useAuthStore = create(
     persist(
         (set, get) => ({
             // --- Estado ---
-            user: null, // { usuario_id: number, nombre: string, rol: string, email: string, id_finca: number|null } | null
+            user: null, // { usuario_id: number, nombre: string, rol: string, token: string, id_finca: number|null } | null
             isAuthenticated: false,
 
             // --- Acciones ---
 
             /**
              * Establece el usuario autenticado.
-             * @param {{ usuario_id: number, nombre: string, rol: string, email: string, id_finca?: number }} userData
+             * @param {{ usuario_id: number, nombre: string, rol: string, token: string, id_finca?: number }} userData
              */
-            login: (userData) =>
+            login: (userData) => {
+                const numericId = Number(userData.usuario_id);
+                if (import.meta.env.DEV) {
+                    console.log('[authStore] login() — raw usuario_id:', userData.usuario_id, '→ Number():', numericId);
+                }
                 set({
                     user: {
-                        usuario_id: userData.usuario_id,
+                        usuario_id: numericId,
                         nombre: userData.nombre,
                         rol: userData.rol,
-                        email: userData.email,
-                        id_finca: userData.id_finca ?? null,
+                        email: userData.email ?? null,
+                        token: userData.token,
                     },
                     isAuthenticated: true,
-                }),
+                });
+            },
 
             /** Limpia el estado de autenticación. */
             logout: () =>
@@ -80,7 +85,18 @@ const useAuthStore = create(
             },
         }),
         {
-            name: 'auth-storage', // key en localStorage
+            name: 'auth-storage',
+            // Versión 2: usuario_id debe ser numérico.
+            // Datos viejos (version 0/1) se borran automáticamente.
+            version: 2,
+            migrate: (persistedState, version) => {
+                if (version < 2) {
+                    // Datos viejos con usuario_id string → forzar re-login
+                    console.warn('[authStore] Migrando datos viejos (v' + version + ') → limpiando sesión');
+                    return { user: null, isAuthenticated: false };
+                }
+                return persistedState;
+            },
             partialize: (state) => ({
                 user: state.user,
                 isAuthenticated: state.isAuthenticated,

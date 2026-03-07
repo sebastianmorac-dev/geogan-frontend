@@ -27,6 +27,21 @@ export const ESTADO_OPTIONS = [
     { value: 'consumo', label: 'Consumo' },
 ];
 
+export const RAZA_OPTIONS = [
+    { value: 'Brahman', label: 'Brahman' },
+    { value: 'Holstein', label: 'Holstein' },
+    { value: 'Jersey', label: 'Jersey' },
+    { value: 'Normando', label: 'Normando' },
+    { value: 'Angus', label: 'Angus' },
+    { value: 'Gyr', label: 'Gyr' },
+    { value: 'Simmental', label: 'Simmental' },
+    { value: 'Charolais', label: 'Charolais' },
+    { value: 'Cebú', label: 'Cebú' },
+    { value: 'Pardo Suizo', label: 'Pardo Suizo' },
+    { value: 'Senepol', label: 'Senepol' },
+    { value: 'Mestizo', label: 'Mestizo' },
+];
+
 export const animalSchema = z.object({
     codigo_identificacion: z
         .string()
@@ -37,9 +52,9 @@ export const animalSchema = z.object({
         .string()
         .min(1, 'La especie es obligatoria'),
 
-    raza: z
-        .string()
-        .min(1, 'La raza es obligatoria'),
+    raza: z.enum(['Brahman', 'Holstein', 'Jersey', 'Normando', 'Angus', 'Gyr', 'Simmental', 'Charolais', 'Cebú', 'Pardo Suizo', 'Senepol', 'Mestizo'], {
+        errorMap: () => ({ message: 'Selecciona una raza válida' }),
+    }),
 
     sexo: z.enum(['M', 'H'], {
         errorMap: () => ({ message: 'Selecciona Macho (M) o Hembra (H)' }),

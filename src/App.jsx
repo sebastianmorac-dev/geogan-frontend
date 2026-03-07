@@ -3,6 +3,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
 import RegisterAnimalPage from './pages/RegisterAnimalPage';
+import EditAnimalPage from './pages/EditAnimalPage';
 
 /**
  * App — GeoGan
@@ -23,6 +24,7 @@ export default function App() {
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/registrar-animal" element={<RegisterAnimalPage />} />
+        <Route path="/editar-animal/:id_animal" element={<EditAnimalPage />} />
       </Route>
 
       {/* Fallback → dashboard (si autenticado) o login (si no) */}

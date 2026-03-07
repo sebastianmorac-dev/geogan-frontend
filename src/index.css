@@ -1,1 +1,7 @@
 @import "tailwindcss";
+
+@theme {
+  --color-geogan-dark: #1A3D2F;
+  --color-geogan-lime: #8CB33E;
+  --color-geogan-surface: #121412;
+}

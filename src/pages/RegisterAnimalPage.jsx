@@ -1,28 +1,42 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, Navigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import useAuthStore from '../store/authStore';
-import { animalSchema, SEXO_OPTIONS, ESTADO_OPTIONS } from '../schemas/animalSchema';
-import { useCreateAnimal } from '../hooks/useAnimales';
+import useAnimales from '../store/useAnimales';
+import { animalSchema, SEXO_OPTIONS, ESTADO_OPTIONS, RAZA_OPTIONS } from '../schemas/animalSchema';
+import api from '../api/client';
+import logo from '../assets/logo_geogan.png';
 
-/**
- * RegisterAnimalPage — GeoGan
- *
- * Formulario de registro de ganado con:
- * - Validación Zod (espejo de Pydantic)
- * - id_finca e id_propietario inyectados desde authStore
- * - Restricción de rol: solo propietario o encargado
- * - Toast de éxito + redirección al dashboard
- */
 export default function RegisterAnimalPage() {
     const user = useAuthStore((state) => state.user);
     const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
     const navigate = useNavigate();
-    const createAnimalMutation = useCreateAnimal();
+
+    const selectedFinca = useAnimales((state) => state.selectedFinca);
+    const setSelectedFinca = useAnimales((state) => state.setSelectedFinca);
+    const addAnimal = useAnimales((state) => state.addAnimal);
+    const storeLoading = useAnimales((state) => state.loading);
+    const clearError = useAnimales((state) => state.clearError);
 
     const [successMsg, setSuccessMsg] = useState('');
     const [serverError, setServerError] = useState('');
+    const [fincasData, setFincasData] = useState([]);
+    const [loadingFincas, setLoadingFincas] = useState(true);
+
+    useEffect(() => {
+        const fetchFincas = async () => {
+            try {
+                const response = await api.get('/fincas/');
+                setFincasData(response.data);
+            } catch (err) {
+                console.error("Error al cargar fincas:", err);
+            } finally {
+                setLoadingFincas(false);
+            }
+        };
+        fetchFincas();
+    }, []);
 
     const {
         register,
@@ -33,7 +47,7 @@ export default function RegisterAnimalPage() {
         resolver: zodResolver(animalSchema),
         defaultValues: {
             codigo_identificacion: '',
-            especie: '',
+            especie: 'Bovino',
             raza: '',
             sexo: '',
             peso: '',
@@ -42,280 +56,137 @@ export default function RegisterAnimalPage() {
         },
     });
 
-    // --- Guardas de seguridad ---
-    if (!isAuthenticated) {
-        return <Navigate to="/login" replace />;
-    }
-
-    const canRegister = user?.rol === 'propietario' || user?.rol === 'encargado' || user?.rol === 'superadmin';
-    if (!canRegister) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-950 px-4">
-                <div className="bg-gray-900 rounded-2xl p-10 border border-red-800 max-w-md w-full text-center">
-                    <h2 className="text-xl font-bold text-red-400 mb-3">⛔ Acceso Denegado</h2>
-                    <p className="text-gray-400 text-sm mb-6">
-                        Solo usuarios con rol <span className="text-amber-400">propietario</span> o{' '}
-                        <span className="text-amber-400">encargado</span> pueden registrar animales.
-                    </p>
-                    <button
-                        onClick={() => navigate('/dashboard')}
-                        className="px-6 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
-                    >
-                        Volver al Dashboard
-                    </button>
-                </div>
-            </div>
-        );
-    }
+    if (!isAuthenticated) return <Navigate to="/login" replace />;
 
     const onSubmit = async (data) => {
         setServerError('');
         setSuccessMsg('');
+        clearError();
+
+        if (!selectedFinca) {
+            setServerError('Por favor, selecciona una finca de la lista.');
+            return;
+        }
+
+        const fincaSeleccionada = fincasData.find(f => f.id_finca === selectedFinca);
+        if (!fincaSeleccionada) {
+            setServerError('Error al identificar la finca seleccionada.');
+            return;
+        }
 
         try {
-            await createAnimalMutation.mutateAsync({
-                ...data,
-                peso: parseFloat(data.peso), // Siempre float para GMD
-                id_finca: user.id_finca,
-                id_propietario: user.usuario_id,
+            // CORRECCIÓN CLAVE: Mapeo exacto para evitar error 422
+            await addAnimal({
+                codigo_identificacion: data.codigo_identificacion,
+                especie: data.especie,
+                raza: data.raza, // Debe ser una de las permitidas por el backend
+                sexo: data.sexo,
+                peso: parseFloat(data.peso), // Backend espera "peso" como número
+                fecha_ingreso: data.fecha_ingreso,
+                estado: data.estado,
+                id_finca: selectedFinca,
+                id_propietario: fincaSeleccionada.id_propietario,
             });
 
-            setSuccessMsg(`✅ Animal "${data.codigo_identificacion}" registrado exitosamente`);
+            setSuccessMsg(`✅ Animal "${data.codigo_identificacion}" registrado con éxito`);
             reset();
-
-            // Redirigir al dashboard después de 2s
             setTimeout(() => navigate('/dashboard'), 2000);
         } catch (error) {
             const detail = error.response?.data?.detail;
-            setServerError(
-                typeof detail === 'string'
-                    ? detail
-                    : 'Error al registrar el animal. Intenta de nuevo.'
-            );
+            // Manejo de errores de validación de FastAPI
+            setServerError(Array.isArray(detail) ? `${detail[0].loc[1]}: ${detail[0].msg}` : detail || 'Error al registrar.');
         }
     };
 
     return (
-        <div className="min-h-screen bg-gray-950 py-8 px-4">
-            <div className="max-w-2xl mx-auto">
-                {/* Header */}
-                <div className="flex items-center justify-between mb-8">
-                    <div>
-                        <h1 className="text-2xl font-bold text-white">📋 Registrar Animal</h1>
-                        <p className="text-gray-500 text-sm mt-1">
-                            Finca ID: <span className="text-emerald-400">{user?.id_finca ?? 'N/A'}</span>
-                            {' '}— Propietario: <span className="text-emerald-400">{user?.nombre}</span>
-                        </p>
+        <div className="min-h-screen bg-white font-sans text-black antialiased">
+            {/* Header: Logo en h-30 (Tamaño 30) para máxima identidad */}
+            <header className="fixed top-0 z-50 w-full bg-white border-b border-gray-200 h-28 px-10 flex justify-between items-center shadow-sm">
+                <div className="flex items-center min-w-[300px]">
+                    <img src={logo} alt="GeoGan" className="h-30 w-auto object-contain filter contrast-125" />
+                </div>
+                <div className="flex items-center gap-10">
+                    <div className="hidden sm:block text-right border-r border-gray-100 pr-8">
+                        <p className="text-xs font-black uppercase tracking-[0.2em] text-black mb-1">Censo Digital</p>
+                        <p className="text-base font-black text-black uppercase">{user?.nombre}</p>
                     </div>
-                    <button
-                        onClick={() => navigate('/dashboard')}
-                        className="px-4 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm rounded-lg border border-gray-700 transition-colors"
-                    >
-                        ← Dashboard
+                    <button onClick={() => navigate('/dashboard')} className="text-xs font-black text-black hover:text-[#1A3D2F] transition-colors uppercase tracking-widest border-b-2 border-black pb-1">
+                        VOLVER
                     </button>
                 </div>
+            </header>
 
-                {/* Toast de éxito */}
-                {successMsg && (
-                    <div className="mb-6 p-4 bg-emerald-900/30 border border-emerald-700 rounded-lg text-emerald-400 text-sm text-center animate-pulse">
-                        {successMsg}
-                    </div>
-                )}
+            <main className="max-w-4xl mx-auto pt-40 pb-20 px-6">
+                {successMsg && <div className="mb-8 p-6 bg-emerald-50 border-l-4 border-emerald-500 rounded-r-xl text-emerald-900 font-black text-sm uppercase tracking-wider">{successMsg}</div>}
+                {serverError && <div className="mb-8 p-6 bg-red-50 border-l-4 border-red-500 rounded-r-xl text-red-800 font-black text-sm uppercase tracking-wider italic">{serverError}</div>}
 
-                {/* Error del servidor */}
-                {serverError && (
-                    <div className="mb-6 p-4 bg-red-900/30 border border-red-700 rounded-lg text-red-400 text-sm text-center">
-                        {serverError}
-                    </div>
-                )}
-
-                {/* Formulario */}
-                <form
-                    onSubmit={handleSubmit(onSubmit)}
-                    noValidate
-                    className="bg-gray-900 rounded-2xl p-8 border border-gray-800 shadow-2xl space-y-6"
-                >
-                    {/* Código de Identificación */}
-                    <div>
-                        <label htmlFor="codigo_identificacion" className="block text-sm font-medium text-gray-300 mb-1.5">
-                            Código de Identificación *
-                        </label>
-                        <input
-                            id="codigo_identificacion"
-                            type="text"
-                            placeholder="Ej: BOV-001"
-                            {...register('codigo_identificacion')}
-                            className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white placeholder-gray-500 outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.codigo_identificacion
-                                    ? 'border-red-500 focus:border-red-500'
-                                    : 'border-gray-700 focus:border-emerald-500'
-                                }`}
-                        />
-                        {errors.codigo_identificacion && (
-                            <p className="mt-1 text-xs text-red-400">{errors.codigo_identificacion.message}</p>
-                        )}
+                <div className="bg-white rounded-[40px] shadow-2xl border border-gray-100 overflow-hidden">
+                    <div className="bg-gray-50/50 px-12 py-10 border-b border-gray-100">
+                        <h2 className="text-2xl font-black text-black uppercase tracking-tighter">Crear Hoja de Vida Animal</h2>
+                        <p className="text-xs font-black text-black uppercase tracking-[0.2em] mt-2">Apertura de registro técnico y productivo</p>
                     </div>
 
-                    {/* Especie + Raza (2 columnas) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="especie" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Especie *
-                            </label>
-                            <input
-                                id="especie"
-                                type="text"
-                                placeholder="Ej: Bovino"
-                                {...register('especie')}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white placeholder-gray-500 outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.especie
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
-                            />
-                            {errors.especie && (
-                                <p className="mt-1 text-xs text-red-400">{errors.especie.message}</p>
-                            )}
-                        </div>
-                        <div>
-                            <label htmlFor="raza" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Raza *
-                            </label>
-                            <input
-                                id="raza"
-                                type="text"
-                                placeholder="Ej: Brahman"
-                                {...register('raza')}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white placeholder-gray-500 outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.raza
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
-                            />
-                            {errors.raza && (
-                                <p className="mt-1 text-xs text-red-400">{errors.raza.message}</p>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Sexo + Peso (2 columnas) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="sexo" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Sexo *
-                            </label>
+                    <form onSubmit={handleSubmit(onSubmit)} noValidate className="p-12 space-y-10">
+                        <div className="space-y-3">
+                            <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Finca de Destino *</label>
                             <select
-                                id="sexo"
-                                {...register('sexo')}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.sexo
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
+                                className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-lg font-black text-black outline-none focus:border-[#1A3D2F] transition-all appearance-none cursor-pointer"
+                                value={selectedFinca || ''}
+                                onChange={(e) => setSelectedFinca(e.target.value ? parseInt(e.target.value, 10) : null)}
                             >
-                                <option value="">Seleccionar...</option>
-                                {SEXO_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </option>
-                                ))}
+                                <option value="">Seleccionar finca...</option>
+                                {fincasData.map((f) => <option key={f.id_finca} value={f.id_finca}>{f.nombre.toUpperCase()}</option>)}
                             </select>
-                            {errors.sexo && (
-                                <p className="mt-1 text-xs text-red-400">{errors.sexo.message}</p>
-                            )}
                         </div>
-                        <div>
-                            <label htmlFor="peso" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Peso (kg) *
-                            </label>
-                            <input
-                                id="peso"
-                                type="number"
-                                step="0.01"
-                                min="0"
-                                placeholder="Ej: 350.50"
-                                {...register('peso', { valueAsNumber: true })}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white placeholder-gray-500 outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.peso
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
-                            />
-                            {errors.peso && (
-                                <p className="mt-1 text-xs text-red-400">{errors.peso.message}</p>
-                            )}
-                        </div>
-                    </div>
 
-                    {/* Fecha Ingreso + Estado (2 columnas) */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label htmlFor="fecha_ingreso" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Fecha de Ingreso
-                            </label>
-                            <input
-                                id="fecha_ingreso"
-                                type="date"
-                                {...register('fecha_ingreso')}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.fecha_ingreso
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
-                            />
-                            {errors.fecha_ingreso && (
-                                <p className="mt-1 text-xs text-red-400">{errors.fecha_ingreso.message}</p>
-                            )}
-                        </div>
-                        <div>
-                            <label htmlFor="estado" className="block text-sm font-medium text-gray-300 mb-1.5">
-                                Estado
-                            </label>
-                            <select
-                                id="estado"
-                                {...register('estado')}
-                                className={`w-full px-4 py-2.5 bg-gray-800 border rounded-lg text-white outline-none transition-colors focus:ring-2 focus:ring-emerald-500/40 ${errors.estado
-                                        ? 'border-red-500 focus:border-red-500'
-                                        : 'border-gray-700 focus:border-emerald-500'
-                                    }`}
-                            >
-                                {ESTADO_OPTIONS.map((opt) => (
-                                    <option key={opt.value} value={opt.value}>
-                                        {opt.label}
-                                    </option>
-                                ))}
-                            </select>
-                            {errors.estado && (
-                                <p className="mt-1 text-xs text-red-400">{errors.estado.message}</p>
-                            )}
-                        </div>
-                    </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-8">
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Código Visual (ID) *</label>
+                                <input type="text" placeholder="EJ: BOV-001" {...register('codigo_identificacion')} className={`w-full bg-gray-50 border-2 rounded-2xl px-6 py-4 text-lg font-black outline-none transition-all placeholder:text-black/20 ${errors.codigo_identificacion ? 'border-red-500' : 'border-gray-100 focus:border-[#1A3D2F]'}`} />
+                            </div>
 
-                    {/* Info inyectada automáticamente */}
-                    <div className="p-3 bg-gray-800/50 border border-gray-700 rounded-lg">
-                        <p className="text-xs text-gray-500">
-                            📌 <span className="text-gray-400">id_finca</span> y{' '}
-                            <span className="text-gray-400">id_propietario</span> se inyectan automáticamente desde tu sesión.
-                        </p>
-                    </div>
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Peso Inicial (KG) *</label>
+                                <input type="number" step="0.01" placeholder="0.00" {...register('peso', { valueAsNumber: true })} className={`w-full bg-gray-50 border-2 rounded-2xl px-6 py-4 text-lg font-black outline-none transition-all placeholder:text-black/20 ${errors.peso ? 'border-red-500' : 'border-gray-100 focus:border-[#1A3D2F]'}`} />
+                            </div>
 
-                    {/* Submit */}
-                    <button
-                        type="submit"
-                        disabled={isSubmitting || createAnimalMutation.isPending}
-                        className={`w-full py-3 px-6 font-semibold rounded-lg transition-all duration-200 ${isSubmitting || createAnimalMutation.isPending
-                                ? 'bg-emerald-800 text-emerald-300 cursor-wait'
-                                : 'bg-emerald-600 hover:bg-emerald-500 text-white hover:shadow-lg hover:shadow-emerald-600/20'
-                            }`}
-                    >
-                        {isSubmitting || createAnimalMutation.isPending ? (
-                            <span className="flex items-center justify-center gap-2">
-                                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                                </svg>
-                                Registrando...
-                            </span>
-                        ) : (
-                            '🐄 Registrar Animal'
-                        )}
-                    </button>
-                </form>
-            </div>
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Especie *</label>
+                                <input type="text" {...register('especie')} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-lg font-black text-black outline-none focus:border-[#1A3D2F]" />
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Raza *</label>
+                                <select {...register('raza')} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-lg font-black text-black outline-none focus:border-[#1A3D2F] appearance-none cursor-pointer">
+                                    <option value="">Seleccionar raza...</option>
+                                    {RAZA_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label.toUpperCase()}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Sexo *</label>
+                                <select {...register('sexo')} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-lg font-black text-black outline-none focus:border-[#1A3D2F] appearance-none cursor-pointer">
+                                    <option value="">Seleccionar...</option>
+                                    {SEXO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label.toUpperCase()}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="space-y-3">
+                                <label className="block text-xs font-black text-black uppercase tracking-[0.2em]">Estado Operativo *</label>
+                                <select {...register('estado')} className="w-full bg-gray-50 border-2 border-gray-100 rounded-2xl px-6 py-4 text-lg font-black text-black outline-none focus:border-[#1A3D2F] appearance-none cursor-pointer">
+                                    {ESTADO_OPTIONS.map(opt => <option key={opt.value} value={opt.value}>{opt.label.toUpperCase()}</option>)}
+                                </select>
+                            </div>
+                        </div>
+
+                        <div className="pt-6">
+                            <button type="submit" disabled={isSubmitting || storeLoading} className="w-full py-6 rounded-2xl font-black text-sm uppercase tracking-[0.4em] bg-[#1A3D2F] text-white hover:bg-[#234d3c] shadow-xl transition-all disabled:opacity-50">
+                                {isSubmitting || storeLoading ? 'PROCESANDO...' : 'CREAR HOJA DE VIDA'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </main>
         </div>
     );
 }
