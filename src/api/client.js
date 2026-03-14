@@ -1,19 +1,12 @@
 import axios from 'axios';
 import useAuthStore from '../store/authStore';
 
-/**
- * GEOGAN API CLIENT - Configuración de Conectividad Estratégica
- * Optimizada para túneles ngrok y despliegue en Vercel.
- */
-
-// Forzamos la limpieza de la URL para evitar undefined o strings vacíos
 const getBaseURL = () => {
-    const envURL = import.meta.env.VITE_API_URL;
+    const envURL = import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL;
     if (envURL && envURL.trim() !== "" && envURL !== "undefined") {
-        return envURL.replace(/\/$/, ""); // Quita el slash final si existe
+        return envURL.replace(/\/$/, "");
     }
-    // Fallback manual: La URL activa según tu túnel actual
-    return 'https://unmistakingly-unsprouting-loria.ngrok-free.dev';
+    return 'http://localhost:8000';
 };
 
 const apiClient = axios.create({
@@ -22,50 +15,36 @@ const apiClient = axios.create({
         'Content-Type': 'application/json',
         'ngrok-skip-browser-warning': 'true',
     },
-    // Aumentamos a 15s para evitar que el túnel "cuelgue" la carga inicial
     timeout: 15000,
 });
 
-// --- Request Interceptor: Auth + Business Intelligence Debugging ---
+// --- Interceptor de Petición ---
 apiClient.interceptors.request.use(
     (config) => {
-        const { user } = useAuthStore.getState();
+        // Si estamos yendo al LOGIN, no validamos token aquí
+        if (config.url.includes('/usuarios/login')) {
+            return config;
+        }
 
-        // Inyección de Token JWT para rutas protegidas
+        const { user } = useAuthStore.getState();
         if (user?.token) {
             config.headers.Authorization = `Bearer ${user.token}`;
         }
-
-        // Identificador de usuario para trazabilidad en el backend
-        if (user?.id || user?.usuario_id) {
-            config.headers['X-Usuario-Id'] = String(user.id || user.usuario_id);
-        }
-
-        console.log(`[GeoGan Sync] Conectando a: ${config.baseURL}${config.url}`);
         return config;
     },
-    (error) => {
-        console.error("[GeoGan Error] Fallo en petición:", error);
-        return Promise.reject(error);
-    }
+    (error) => Promise.reject(error)
 );
 
-// --- Response Interceptor: Gestión de Sesión y Errores Críticos ---
+// --- Interceptor de Respuesta en src/api/client.js ---
 apiClient.interceptors.response.use(
     (response) => response,
     (error) => {
-        // Manejo automático de sesión expirada (Seguridad GeoGan)
-        if (error.response?.status === 401) {
-            console.error("Acceso denegado: Sesión expirada.");
-            useAuthStore.getState().logout();
-            window.location.href = '/login';
+        // COMENTAMOS LAS LÍNEAS QUE TE EXPULSAN
+        if (error.response?.status === 401 && !error.config.url.includes('/usuarios/login')) {
+            console.error("🚨 El backend rechazó el token en:", error.config.url);
+            // useAuthStore.getState().logout(); // <-- COMENTADO
+            // window.location.href = '/login';   // <-- COMENTADO
         }
-
-        // Diagnóstico de red para el usuario
-        if (error.code === 'ECONNABORTED') {
-            console.error("La conexión con el servidor local tardó demasiado.");
-        }
-
         return Promise.reject(error);
     }
 );

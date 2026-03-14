@@ -1,26 +1,17 @@
-import apiClient from './client';
+import api from './client';
 
-/**
- * Auth Service — GeoGan
- *
- * Servicios de autenticación contra el backend FastAPI.
- * Endpoint: POST /usuarios/login
- *
- * El backend espera: { correo: string, contrasena: string }
- * y responde con: { message, usuario_id, nombre, rol, token, token_type }
- */
+export const loginUser = async (data) => {
+    // 1. Transformamos el JSON de React al formato Formulario que exige FastAPI
+    const formData = new URLSearchParams();
+    formData.append('username', data.email);
+    formData.append('password', data.password);
 
-/**
- * Autentica un usuario contra el backend.
- * @param {{ email: string, password: string }} credentials
- * @returns {Promise<{ usuario_id: number, nombre: string, rol: string, token: string }>}
- * @throws {Error} Si las credenciales son inválidas (401) o el usuario no existe (404)
- */
-export async function loginUser(credentials) {
-    const response = await apiClient.post('/usuarios/login', {
-        correo: credentials.email,
-        contrasena: credentials.password,
+    // 2. Enviamos la petición
+    const response = await api.post('/usuarios/login', formData, {
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
     });
 
     return response.data;
-}
+};
