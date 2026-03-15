@@ -36,7 +36,7 @@ export default function LoginPage() {
             // Guardamos los datos EXACTOS que el backend unificado está enviando
             login({
                 usuario_id: respuesta.id_usuario,
-                nombre: respuesta.nombre_completo || respuesta.nombre, // Probamos ambos por si acaso
+                nombre: respuesta.nombre_completo || respuesta.nombre || "Usuario GeoGan", 
                 rol: respuesta.rol,
                 token: respuesta.access_token,
                 fincas: respuesta.fincas || []
