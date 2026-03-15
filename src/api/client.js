@@ -42,8 +42,8 @@ apiClient.interceptors.response.use(
         // COMENTAMOS LAS LÍNEAS QUE TE EXPULSAN
         if (error.response?.status === 401 && !error.config.url.includes('/usuarios/login')) {
             console.error("🚨 El backend rechazó el token en:", error.config.url);
-            // useAuthStore.getState().logout(); // <-- COMENTADO
-            // window.location.href = '/login';   // <-- COMENTADO
+            useAuthStore.getState().logout();
+            window.location.href = '/login';
         }
         return Promise.reject(error);
     }
