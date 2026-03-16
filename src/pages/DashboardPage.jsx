@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../api/client';
 import useAuthStore from '../store/authStore';
 import logo from '../assets/logo_geogan.png';
+import ModalAjustarPrecio from '../components/modals/ModalAjustarPrecio';
 
 export default function DashboardPage() {
     const user = useAuthStore((state) => state.user);
@@ -23,6 +24,8 @@ export default function DashboardPage() {
     const [alertasInteligentes, setAlertasInteligentes] = useState([]);
     const [historialNutricion, setHistorialNutricion] = useState([]);
     const [lotesSeleccionadosMasivo, setLotesSeleccionadosMasivo] = useState([]);
+    const [precioKilo, setPrecioKilo] = useState(8500); // <-- Precio dinámico por kg
+    const [showModalPrecio, setShowModalPrecio] = useState(false);
 
     // --- PESTAÑAS Y MODALES ---
     const [activeTab, setActiveTab] = useState('resumen');
@@ -50,6 +53,16 @@ export default function DashboardPage() {
     const nombresExtraidos = allAnimales.map(a => a.lote).filter(Boolean);
     const nombresOficiales = lotesBackend.map(l => l.nombre);
     const lotesNombres = Array.from(new Set(['General', ...nombresOficiales, ...nombresExtraidos]));
+    // --- ESTADOS PARA CARGA MASIVA ---
+    const [showImportarModal, setShowImportarModal] = useState(false);
+    const [archivoPesajes, setArchivoPesajes] = useState(null);
+    const [isUploading, setIsUploading] = useState(false);
+
+    // --- ESTADOS PARA MAPEO CSV ---
+    const [columnasCSV, setColumnasCSV] = useState([]);
+    const [datosCSV, setDatosCSV] = useState([]);
+    const [mapeo, setMapeo] = useState({ id_excel: '', peso: '', fecha: '' });
+    const [showMapeoModal, setShowMapeoModal] = useState(false);
 
     // --- EL MOTOR ORIGINAL ---
     const loadData = useCallback(async () => {
@@ -69,6 +82,16 @@ export default function DashboardPage() {
             setInsumos(bodega);
             setCatalogoMaestro(resSugeridos.data || []);
             setLotesBackend(resLotes.data || []);
+            
+            // Tratamos de obtener el precio base de la finca si el endpoint existe, o dejamos el default
+            try {
+                const resPrecio = await api.get(`/fincas/${cleanId}/parametros`);
+                if (resPrecio.data && resPrecio.data.precio_base_venta_kg) {
+                    setPrecioKilo(resPrecio.data.precio_base_venta_kg);
+                }
+            } catch (err) {
+                // Silencioso, simplemente usamos el estado actual (8500)
+            }
 
             // MAQUETACIÓN DE ALERTAS GLOBALES
             const hoy = new Date();
@@ -103,16 +126,17 @@ export default function DashboardPage() {
 
             setAlertasInteligentes(nuevasAlertas);
 
+            // Pasamos el precioKilo actual dependiente del estado pero garantizado a reflejarse en la dependencia
             const sumaPesos = data.reduce((acc, curr) => acc + (parseFloat(curr.peso) || 0), 0);
             setStats({
                 total: data.length,
                 promedioPeso: data.length > 0 ? (sumaPesos / data.length).toFixed(1) : 0,
                 alertas: nuevasAlertas.length,
-                valorLote: (sumaPesos * 8500).toLocaleString('es-CO'),
+                valorLote: (sumaPesos * precioKilo).toLocaleString('es-CO'),
                 gastoHoy: stats.gastoHoy
             });
         } catch (err) { console.error("Error cargando datos:", err); }
-    }, [fincaSel]);
+    }, [fincaSel, precioKilo]);
 
     useEffect(() => {
         api.get('/fincas/').then(res => setFincas(res.data || [])).catch(err => setFincas([]));
@@ -214,6 +238,123 @@ export default function DashboardPage() {
             loadData();
         } catch (err) { alert("Error al actualizar el producto."); }
     };
+    const handleArchivoSeleccionado = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+        setArchivoPesajes(file);
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const text = e.target.result;
+            // Separamos por líneas y detectamos si usa coma o punto y coma
+            const lineas = text.split('\n').filter(line => line.trim() !== '');
+            const separador = lineas[0].includes(';') ? ';' : ',';
+            const headers = lineas[0].split(separador).map(h => h.trim());
+
+            setColumnasCSV(headers);
+            setDatosCSV(lineas.slice(1).map(linea => linea.split(separador)));
+
+            // Auto-detección inteligente (Empatía UX)
+            const autoMap = { id_excel: '', peso: '', fecha: '' };
+            headers.forEach(h => {
+                const hLower = h.toLowerCase();
+                // Acentos o palabras comunes
+                if (hLower.includes('arete') || hLower.includes('id') || hLower.includes('chapa') || hLower.includes('identifica')) autoMap.id_excel = h;
+                if (hLower.includes('peso') || hLower.includes('kg')) autoMap.peso = h;
+                if (hLower.includes('fecha')) autoMap.fecha = h;
+            });
+
+            setMapeo(autoMap);
+            setShowImportarModal(false);
+            setShowMapeoModal(true); // Abrimos el modal para que el ganadero confirme
+        };
+        reader.readAsText(file);
+    };
+
+    const handleImportarPesajesMasivos = async () => {
+        if (!user?.usuario_id) {
+            alert("⚠️ Error de sesión: No podemos identificar tu usuario. Por favor, recarga la página o vuelve a iniciar sesión.");
+            return;
+        }
+
+        if (!mapeo.id_excel || !mapeo.peso) {
+            alert("Debes seleccionar al menos las columnas de Identificación y Peso.");
+            return;
+        }
+
+        setIsUploading(true);
+
+        try {
+            const indexId = columnasCSV.indexOf(mapeo.id_excel);
+            const indexPeso = columnasCSV.indexOf(mapeo.peso);
+            const indexFecha = mapeo.fecha ? columnasCSV.indexOf(mapeo.fecha) : -1;
+
+            const registrosLimpios = [];
+
+            datosCSV.forEach(fila => {
+                // fila en este caso ya es un array de columnas porque se separó al leer el archivo.
+                // Usamos la variable 'fila' directamente que representa las columnas extraídas
+                const columnas = fila;
+
+                // Validamos que la fila tenga suficientes columnas
+                if (columnas.length > Math.max(indexId, indexPeso)) {
+                    // Validamos que exista un peso válido y chapeta
+                    const chapeta = columnas[indexId] ? String(columnas[indexId]).trim() : "";
+                    const pesoVal = parseFloat(columnas[indexPeso]);
+
+                    if (chapeta && !isNaN(pesoVal) && pesoVal > 0) {
+                        registrosLimpios.push({
+                            id_excel: chapeta,
+                            peso: pesoVal,
+                            fecha: indexFecha !== -1 && columnas[indexFecha] ? String(columnas[indexFecha]).trim() : new Date().toISOString().split('T')[0]
+                        });
+                    }
+                }
+            });
+
+            if (registrosLimpios.length === 0) {
+                alert("No se encontraron registros válidos para importar.");
+                setIsUploading(false);
+                return;
+            }
+
+            const payload = {
+                id_finca: parseInt(String(fincaSel).split(':')[0]),
+                id_usuario: user.usuario_id, // <-- Limpio y seguro
+                fuente: "ARCHIVO_PLANO",
+                registros: registrosLimpios
+            };
+
+            const res = await api.post('/animales/pesaje-lote', payload);
+            const { procesados, no_encontrados } = res.data;
+
+            // 1. OBLIGATORIO: Recargar el Dashboard para que el "Valor Estimado" suba en tiempo real
+            loadData();
+
+            // 2. Limpiar estados y cerrar modales
+            setShowMapeoModal(false);
+            setArchivoPesajes(null);
+            setDatosCSV([]);
+            setColumnasCSV([]);
+
+            // 3. Alerta Inteligente (Empatia Ganadera)
+            if (no_encontrados && no_encontrados.length > 0) {
+                alert(
+                    `¡Pesaje procesado!\n\n` +
+                    `✅ Se actualizaron: ${procesados} animales.\n` +
+                    `⚠️ Atención: Las siguientes chapetas no existen en la finca o ya fueron vendidas: ${no_encontrados.join(', ')}`
+                );
+            } else {
+                alert(`¡Éxito total! Se actualizaron los pesos de ${procesados} animales.`);
+            }
+
+        } catch (error) {
+            console.error("Error en la importación masiva:", error);
+            alert("Hubo un error al intentar subir los pesajes. Revisa tu conexión.");
+        } finally {
+            setIsUploading(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-[#F4F6F4] font-sans text-[#11261F] antialiased">
@@ -288,7 +429,22 @@ export default function DashboardPage() {
 
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 mb-8">
                                 <div className="lg:col-span-8 bg-[#11261F] rounded-[40px] p-10 text-white shadow-2xl flex flex-col justify-center">
-                                    <p className="text-sm font-black uppercase tracking-widest text-[#8CB33E] mb-6">Valor Estimado de tus Animales</p>
+                                    <div className="flex justify-between items-start mb-6">
+                                        <p className="text-sm font-black uppercase tracking-widest text-[#8CB33E]">Valor Estimado de tus Animales</p>
+                                        {/* ESCUDO DE ROLES: Solo admin/propietario ve el botón para editar */}
+                                        {(user?.rol === 'admin' || user?.rol === 'propietario' || user?.rol === 'superadmin') && (
+                                            <button 
+                                                onClick={() => {
+                                                    alert("Próximamente: Modal para actualizar el `precio_base_venta_kg` en la DB.");
+                                                    setShowModalPrecio(true); // Preparado para tu modal
+                                                }}
+                                                className="bg-white/10 p-2 hover:bg-white/20 rounded-full transition-colors flex items-center justify-center"
+                                                title="Ajustar precio de mercado por KG"
+                                            >
+                                                ✏️<span className="sr-only">Editar Precio</span>
+                                            </button>
+                                        )}
+                                    </div>
                                     <h3 className="text-6xl font-black italic tracking-tighter mb-10">$ {stats.valorLote}</h3>
                                     <div className="flex gap-6">
                                         <div className="bg-white/10 px-6 py-4 rounded-2xl"><p className="text-xs uppercase font-bold text-gray-300">Peso Promedio</p><p className="text-2xl font-black italic">{stats.promedioPeso} kg</p></div>
@@ -331,7 +487,7 @@ export default function DashboardPage() {
                                     <div className="flex flex-col md:flex-row justify-between items-center mb-10 gap-4">
                                         <h4 className="text-lg font-black uppercase text-[#11261F]">Tus Lotes Actuales ({lotesNombres.length})</h4>
                                         <div className="flex gap-4">
-                                            <button onClick={() => alert("Módulo para importar Excel en construcción.")} className="bg-white border-2 border-[#E6F4D7] text-[#11261F] px-8 py-3.5 rounded-2xl text-xs font-black uppercase shadow-sm hover:border-[#8CB33E] transition-colors">Importar Pesajes</button>
+                                            <button onClick={() => setShowImportarModal(true)} className="bg-white border-2 border-[#E6F4D7] text-[#11261F] px-8 py-3.5 rounded-2xl text-xs font-black uppercase shadow-sm hover:border-[#8CB33E] transition-colors">Importar Pesajes</button>
                                             <button onClick={() => setShowNuevoLoteModal(true)} className="bg-[#11261F] text-white px-8 py-3.5 rounded-2xl text-xs font-black uppercase shadow-lg">+ Crear Nuevo Lote</button>
                                         </div>
                                     </div>
@@ -341,7 +497,7 @@ export default function DashboardPage() {
                                             const animalesDelLote = allAnimales.filter(a => (a.lote || 'General') === lote);
                                             const sumaPesosLote = animalesDelLote.reduce((acc, curr) => acc + (parseFloat(curr.peso) || 0), 0);
                                             const promedioLote = animalesDelLote.length > 0 ? (sumaPesosLote / animalesDelLote.length).toFixed(1) : 0;
-                                            const valorLoteCalculado = (sumaPesosLote * 8500).toLocaleString('es-CO');
+                                            const valorLoteCalculado = (sumaPesosLote * precioKilo).toLocaleString('es-CO');
                                             const loteDb = lotesBackend.find(l => l.nombre === lote);
 
                                             return (
@@ -828,6 +984,117 @@ export default function DashboardPage() {
                     </div>
                 </div>
             )}
+            {/* Modal: Importar Pesajes Masivos */}
+            {showImportarModal && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#11261F]/90 backdrop-blur-sm p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[40px] p-12 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-black text-[#11261F] uppercase">Carga Masiva</h3>
+                            <button onClick={() => { setShowImportarModal(false); setArchivoPesajes(null); }} className="text-gray-400 hover:text-red-500 font-bold text-xl">✕</button>
+                        </div>
+
+                        <p className="text-sm text-gray-500 font-medium mb-8 leading-relaxed">
+                            Sube el archivo CSV o Excel de tu báscula electrónica. Asegúrate de tener las columnas: <span className="font-black text-[#11261F]">Identificación</span>, <span className="font-black text-[#11261F]">Peso</span> y <span className="font-black text-[#11261F]">Fecha</span>.
+                        </p>
+
+                        <div className="border-2 border-dashed border-[#E6F4D7] rounded-3xl p-10 text-center hover:bg-[#F4F6F4] transition-colors relative group">
+                            <input
+                                type="file"
+                                accept=".csv"
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                                onChange={handleArchivoSeleccionado}
+                                value=""
+                            />
+                            <div className="text-5xl mb-4 group-hover:scale-110 transition-transform">📊</div>
+                            <div>
+                                <p className="text-[#11261F] font-black text-sm uppercase">Haz clic o arrastra tu archivo CSV aquí</p>
+                                <p className="text-xs font-bold text-gray-400 mt-1">Soporta delimitadores por coma o punto y coma</p>
+                            </div>
+                        </div>
+
+                        <div className="mt-8 space-y-3">
+                            <button onClick={() => { setShowImportarModal(false); setArchivoPesajes(null); }} className="w-full text-xs font-black uppercase text-gray-400 hover:underline text-center">
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Modal: Mapeo de Columnas CSV */}
+            {showMapeoModal && (
+                <div className="fixed inset-0 z-[150] flex items-center justify-center bg-[#11261F]/90 backdrop-blur-sm p-4">
+                    <div className="bg-white w-full max-w-lg rounded-[40px] p-12 shadow-2xl animate-in zoom-in-95 duration-300">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-2xl font-black text-[#11261F] uppercase">Confirmar Columnas</h3>
+                            <button onClick={() => { setShowMapeoModal(false); setArchivoPesajes(null); setColumnasCSV([]); setDatosCSV([]); }} className="text-gray-400 hover:text-red-500 font-bold text-xl">✕</button>
+                        </div>
+
+                        <p className="text-sm text-gray-500 font-medium mb-8 leading-relaxed">
+                            Hemos leído tu archivo <span className="font-black text-[#8CB33E]">{archivoPesajes?.name}</span>. Por favor confirma qué columna corresponde a cada dato:
+                        </p>
+
+                        <div className="space-y-6">
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Identificación (Obligatorio)</label>
+                                <select
+                                    className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-4 font-black text-sm outline-none mt-2"
+                                    value={mapeo.id_excel}
+                                    onChange={(e) => setMapeo({ ...mapeo, id_excel: e.target.value })}
+                                >
+                                    <option value="">-- Selecciona la columna --</option>
+                                    {columnasCSV.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Peso en Kg (Obligatorio)</label>
+                                <select
+                                    className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-4 font-black text-sm outline-none mt-2"
+                                    value={mapeo.peso}
+                                    onChange={(e) => setMapeo({ ...mapeo, peso: e.target.value })}
+                                >
+                                    <option value="">-- Selecciona la columna --</option>
+                                    {columnasCSV.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            <div>
+                                <label className="text-[10px] font-black uppercase text-gray-400 tracking-widest ml-2">Fecha (Opcional)</label>
+                                <select
+                                    className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-4 font-black text-sm outline-none mt-2"
+                                    value={mapeo.fecha}
+                                    onChange={(e) => setMapeo({ ...mapeo, fecha: e.target.value })}
+                                >
+                                    <option value="">-- Usa la fecha actual si está vacío --</option>
+                                    {columnasCSV.map(c => <option key={c} value={c}>{c}</option>)}
+                                </select>
+                            </div>
+
+                            <div className="mt-8 space-y-3">
+                                <button
+                                    disabled={!mapeo.id_excel || !mapeo.peso || isUploading}
+                                    onClick={handleImportarPesajesMasivos}
+                                    className={`w-full py-5 rounded-2xl font-black uppercase shadow-md transition-all ${(!mapeo.id_excel || !mapeo.peso) ? 'bg-gray-200 text-gray-400 cursor-not-allowed' : 'bg-[#11261F] text-white hover:bg-[#8CB33E]'}`}
+                                >
+                                    {isUploading ? 'Sincronizando...' : `Importar ${datosCSV.length} Pesajes`}
+                                </button>
+                                <button onClick={() => { setShowMapeoModal(false); setShowImportarModal(true); }} className="w-full text-xs font-black uppercase text-gray-400 hover:underline text-center">
+                                    Cancelar y Volver
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <ModalAjustarPrecio 
+                isOpen={showModalPrecio}
+                onClose={() => setShowModalPrecio(false)}
+                precioActual={precioKilo}
+                idFinca={String(fincaSel).split(':')[0]}
+                onActualizado={(nuevoValor) => setPrecioKilo(nuevoValor)}
+            />
         </div>
     );
 }
