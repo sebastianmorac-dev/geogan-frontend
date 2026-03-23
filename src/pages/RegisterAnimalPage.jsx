@@ -42,11 +42,17 @@ export default function RegisterAnimalPage() {
     const onSubmit = async (data) => {
         setLoading(true);
         try {
+            const idFincaInt = parseInt(data.finca_id);
+            const fincaSeleccionada = fincas.find(f => f.id_finca === idFincaInt);
+            
             const payload = {
                 ...data,
                 peso: parseFloat(data.peso),
-                finca_id: data.finca_id
+                id_finca: idFincaInt,
+                id_propietario: fincaSeleccionada ? fincaSeleccionada.id_propietario : (user?.id_usuario || 1)
             };
+            // Eliminar variable residual del formulario web
+            delete payload.finca_id;
             await api.post('/animales/', payload);
             setSuccess(true);
             setTimeout(() => navigate('/dashboard'), 2000);
