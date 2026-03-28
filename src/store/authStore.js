@@ -11,6 +11,7 @@ const useAuthStore = create(
             // --- Estado ---
             user: null,
             isAuthenticated: false,
+            isHydrated: false,
 
             // --- Acciones ---
             login: (userData) => {
@@ -57,6 +58,11 @@ const useAuthStore = create(
                     return { user: null, isAuthenticated: false };
                 }
                 return persistedState;
+            },
+            onRehydrateStorage: () => (state) => {
+                if (state) {
+                    state.isHydrated = true;
+                }
             },
         }
     )

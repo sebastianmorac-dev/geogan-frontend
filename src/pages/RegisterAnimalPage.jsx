@@ -46,14 +46,19 @@ export default function RegisterAnimalPage() {
             const fincaSeleccionada = fincas.find(f => f.id_finca === idFincaInt);
             
             const payload = {
-                ...data,
+                ...data, // especie, raza, fecha_ingreso, codigo_identificacion
                 peso: parseFloat(data.peso),
-                id_finca: idFincaInt,
-                id_propietario: fincaSeleccionada ? fincaSeleccionada.id_propietario : (user?.id_usuario || 1)
+                // 🔴 LOS DOS ARREGLOS VITALES:
+                id_finca: parseInt(data.finca_id), 
+                id_propietario: parseInt(user?.usuario_id) 
             };
             // Eliminar variable residual del formulario web
             delete payload.finca_id;
             await api.post('/animales/', payload);
+
+            // Empatía Ganadera: Mensaje de confirmación ANTES de sacarlo de la vista
+            alert(`✅ ¡Bovino ${data.codigo_identificacion} registrado exitosamente en el sistema!`);
+
             setSuccess(true);
             setTimeout(() => navigate('/dashboard'), 2000);
         } catch (err) {
