@@ -47,7 +47,7 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                         <option value="">-- Selecciona el Insumo --</option>
                         {insumosBodega.map(i => (
                             <option key={i.id_insumo} value={i.id_insumo}>
-                                {i.nombre_insumo.toUpperCase()} (Stock: {i.stock_actual_kg} kg)
+                                {i.nombre_insumo.toUpperCase()} (Stock: {i.stock_actual_unidad} {i.unidad_empaque || 'UN'})
                             </option>
                         ))}
                     </select>

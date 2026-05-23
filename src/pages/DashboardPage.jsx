@@ -303,8 +303,10 @@ export default function DashboardPage() {
             // --- 🎯 DISPARO 1: BODEGA Y FINANZAS (Siempre se ejecuta) ---
             const payloadBodega = {
                 id_insumo: parseInt(datosConsumo.id_insumo),
-                cantidad_usada: parseFloat(datosConsumo.cantidad),
-                id_lote: loteParaCobro
+                cantidad_unidad: parseFloat(datosConsumo.cantidad),
+                id_lote: String(loteParaCobro ?? 'general'),
+                id_finca: Number(String(fincaSel).split(':')[0]),
+                id_usuario: user?.id_usuario
             };
             await api.post('/insumos/suministro-lote', payloadBodega);
 
@@ -415,14 +417,14 @@ export default function DashboardPage() {
     };
 
     const handleSuministro = async () => {
-        if (!suministroData.id_insumo || !suministroData.cantidad_kg || !suministroData.id_lote) {
+        if (!suministroData.id_insumo || !suministroData.cantidad_unidad || !suministroData.id_lote) {
             alert("Por favor selecciona el Lote, el Producto y la Cantidad.");
             return;
         }
         try {
             await api.post('/insumos/suministro-lote', {
                 id_insumo: Number(suministroData.id_insumo),
-                cantidad_kg: Number(suministroData.cantidad_kg),
+                cantidad_unidad: Number(suministroData.cantidad_unidad),
                 id_lote: suministroData.id_lote,
                 id_finca: Number(String(fincaSel).split(':')[0]),
                 id_usuario: user?.id_usuario
@@ -441,8 +443,8 @@ export default function DashboardPage() {
         if (!insumoEditData.cantidad || !insumoEditData.precio) return;
         try {
             await api.put(`/insumos/${insumoEditData.id_insumo}`, {
-                stock_actual_kg: parseFloat(insumoEditData.cantidad),
-                costo_promedio_kg: parseFloat(insumoEditData.precio)
+                stock_actual_unidad: parseFloat(insumoEditData.cantidad),
+                costo_promedio_unidad: parseFloat(insumoEditData.precio)
             });
             setShowEditarInsumoModal(false);
             loadInsumos();
@@ -1170,14 +1172,12 @@ export default function DashboardPage() {
                     e.preventDefault();
                     const formData = new FormData(e.target);
                     
-                    // Payload estricto según el contrato de Sebas
                     const payload = {
                         id_insumo: parseInt(formData.get('id_insumo')),
                         cantidad_bultos: parseFloat(formData.get('cantidad_bultos')),
-                        peso_bulto_kg: parseFloat(formData.get('peso_bulto_kg')),
+                        medida_empaque_unidad: parseFloat(formData.get('medida_empaque_unidad')),
                         precio_bulto_neto: parseFloat(formData.get('precio_bulto_neto')),
                         costo_flete_total: parseFloat(formData.get('costo_flete_total')) || 0,
-                        // La fecha de compra es opcional, dejaremos que el backend asigne 'hoy'
                     };
 
                     try {
@@ -1199,7 +1199,7 @@ export default function DashboardPage() {
                             {/* Asumo que 'insumos' es tu estado que carga la bodega actual */}
                             {insumos.map(insumo => (
                                 <option key={insumo.id_insumo} value={insumo.id_insumo}>
-                                    {insumo.nombre_insumo} (Stock actual: {insumo.cantidad_kg || insumo.stock_actual_kg} kg)
+                                    {insumo.nombre_insumo} (Stock: {insumo.stock_actual_unidad} {insumo.unidad_empaque || 'UN'})
                                 </option>
                             ))}
                         </select>
@@ -1214,7 +1214,7 @@ export default function DashboardPage() {
                         </div>
                         <div className="space-y-2">
                             <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Peso x Empaque (KG)</label>
-                            <input type="number" step="0.01" name="peso_bulto_kg" required placeholder="Ej: 40" 
+                            <input type="number" step="0.01" name="medida_empaque_unidad" required placeholder="Ej: 40"
                                 className="w-full bg-[#F4F6F4] rounded-2xl p-4 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]" />
                         </div>
                     </div>
@@ -1278,11 +1278,11 @@ export default function DashboardPage() {
                             </select>
                             <select className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-5 font-black outline-none" onChange={(e) => setSuministroData({ ...suministroData, id_insumo: e.target.value })}>
                                 <option value="">-- ¿Qué producto de la bodega? --</option>
-                                {insumos.filter(ins => ins.stock_actual_kg > 0).map(ins => (
-                                    <option key={ins.id_insumo} value={ins.id_insumo}>{ins.nombre_insumo.toUpperCase()} ({ins.stock_actual_kg}kg disp.)</option>
+                                {insumos.filter(ins => ins.stock_actual_unidad > 0).map(ins => (
+                                    <option key={ins.id_insumo} value={ins.id_insumo}>{ins.nombre_insumo.toUpperCase()} ({ins.stock_actual_unidad} {ins.unidad_empaque || 'UN'} disp.)</option>
                                 ))}
                             </select>
-                            <input type="number" min="0" placeholder="Cantidad a repartir (Ej: 2 pacas, 5 dosis...)" className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-5 font-black text-center text-xl outline-none" onChange={(e) => setSuministroData({ ...suministroData, cantidad_kg: e.target.value })} />
+                            <input type="number" min="0" placeholder="Cantidad a repartir (Ej: 2 pacas, 5 dosis...)" className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-5 font-black text-center text-xl outline-none" onChange={(e) => setSuministroData({ ...suministroData, cantidad_unidad: e.target.value })} />
                             <button onClick={handleSuministro} className="w-full bg-[#8CB33E] text-white py-5 rounded-2xl font-black uppercase shadow-md hover:bg-[#7a9d35]">Registrar y Descontar</button>
                             <button onClick={() => setShowSuministroModal(false)} className="w-full text-sm font-black uppercase text-gray-500 mt-2">Cancelar</button>
                         </div>

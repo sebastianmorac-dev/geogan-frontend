@@ -22,6 +22,7 @@ export default function HojaDeVidaAnimal() {
     const [activeTab, setActiveTab] = useState('pesajes');
     const [showSanitaryModal, setShowSanitaryModal] = useState(false);
     const [showPesoModal, setShowPesoModal] = useState(false);
+    const [editandoPesoId, setEditandoPesoId] = useState(null);
 
     const { register, handleSubmit, reset, setValue, formState: { isSubmitting } } = useForm();
     const sanitaryForm = useForm();
@@ -134,16 +135,23 @@ export default function HojaDeVidaAnimal() {
     // =========================================================================
     const onPesoSubmit = async (data) => {
         try {
-            await api.post(`/animales/${id}/pesaje`, {
-                id_animal: parseInt(id),
+            const payload = {
                 peso_kg: parseFloat(data.peso),
                 fecha_pesaje: new Date().toISOString().split('T')[0],
                 observaciones: data.observaciones,
                 creado_por: user?.id_usuario
-            });
+            };
+
+            if (editandoPesoId) {
+                await api.put(`/animales/pesaje/${editandoPesoId}`, payload);
+            } else {
+                await api.post(`/animales/${id}/pesaje`, { ...payload, id_animal: parseInt(id) });
+            }
+
             setShowPesoModal(false);
+            setEditandoPesoId(null);
             fetchDatos();
-        } catch (err) { alert("Error al guardar novedad"); }
+        } catch (err) { alert("Error al guardar el pesaje"); }
     };
 
     const onSanitarySubmit = async (data) => {
@@ -169,6 +177,7 @@ export default function HojaDeVidaAnimal() {
     const editarPeso = (registro) => {
         setValue('peso', registro.peso_kg);
         setValue('observaciones', registro.observaciones || '');
+        setEditandoPesoId(registro.id_peso);
         setShowPesoModal(true);
     };
 
@@ -456,7 +465,12 @@ export default function HojaDeVidaAnimal() {
             {/* ========================================================================= */}
             {/* ⚖️ MODAL: REGISTRAR PESO / NOVEDAD                                        */}
             {/* ========================================================================= */}
-            <ModalOverlay isOpen={showPesoModal} onClose={() => setShowPesoModal(false)} title="NUEVO PESAJE DE CAMPO" maxWidth="sm">
+            <ModalOverlay
+                isOpen={showPesoModal}
+                onClose={() => { setShowPesoModal(false); setEditandoPesoId(null); reset(); }}
+                title={editandoPesoId ? "CORREGIR REGISTRO DE PESO" : "NUEVO PESAJE DE CAMPO"}
+                maxWidth="sm"
+            >
                 <form onSubmit={handleSubmit(async (data) => {
                     await onPesoSubmit(data);
                 })} className="space-y-6">
