@@ -50,6 +50,8 @@ export default function DashboardPage() {
     const [showEditarInsumoModal, setShowEditarInsumoModal] = useState(false);
     const [insumoEditData, setInsumoEditData] = useState({ id_insumo: '', nombre: '', cantidad: '', precio: '' });
 
+    const [insumoSeleccionadoCompra, setInsumoSeleccionadoCompra] = useState(null);
+
     const [compraData, setCompraData] = useState({
         selection_id: '',
         cantidad_unidades: '', // Ej: 10 (bultos)
@@ -1167,7 +1169,7 @@ export default function DashboardPage() {
             {/* ========================================================================= */}
             {/* 💰 MODAL DE COMPRAS (ABASTECIMIENTO DE BODEGA)                            */}
             {/* ========================================================================= */}
-            <ModalOverlay isOpen={showCompraModal} onClose={() => setShowCompraModal(false)} title="REGISTRAR NUEVA COMPRA" maxWidth="md">
+            <ModalOverlay isOpen={showCompraModal} onClose={() => { setShowCompraModal(false); setInsumoSeleccionadoCompra(null); }} title="REGISTRAR NUEVA COMPRA" maxWidth="md">
                 <form onSubmit={async (e) => {
                     e.preventDefault();
                     const formData = new FormData(e.target);
@@ -1184,6 +1186,7 @@ export default function DashboardPage() {
                         await api.post('/insumos/compra', payload);
                         alert("✅ Compra registrada. Stock y Costo Promedio (CPP) actualizados automáticamente.");
                         setShowCompraModal(false);
+                        setInsumoSeleccionadoCompra(null);
                         loadInsumos(); // Recargador selectivo Fórmula 1
                     } catch (error) {
                         console.error("Error en la compra:", error);
@@ -1194,9 +1197,13 @@ export default function DashboardPage() {
                     {/* 1. SELECCIÓN AI-READY (Catálogo Cerrado) */}
                     <div className="space-y-2">
                         <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Producto a Ingresar</label>
-                        <select name="id_insumo" required className="w-full bg-[#F4F6F4] rounded-2xl p-4 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]">
+                        <select name="id_insumo" required
+                            className="w-full bg-[#F4F6F4] rounded-2xl p-4 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]"
+                            onChange={(e) => {
+                                const id = parseInt(e.target.value);
+                                setInsumoSeleccionadoCompra(insumos.find(i => i.id_insumo === id) || null);
+                            }}>
                             <option value="">Seleccione del inventario...</option>
-                            {/* Asumo que 'insumos' es tu estado que carga la bodega actual */}
                             {insumos.map(insumo => (
                                 <option key={insumo.id_insumo} value={insumo.id_insumo}>
                                     {insumo.nombre_insumo} (Stock: {insumo.stock_actual_unidad} {insumo.unidad_empaque || 'UN'})
@@ -1213,8 +1220,19 @@ export default function DashboardPage() {
                                 className="w-full bg-[#F4F6F4] rounded-2xl p-4 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Peso x Empaque (KG)</label>
-                            <input type="number" step="0.01" name="medida_empaque_unidad" required placeholder="Ej: 40"
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">
+                                {insumoSeleccionadoCompra?.unidad_empaque === 'LT'
+                                    ? 'Volumen x Empaque (LT)'
+                                    : insumoSeleccionadoCompra?.unidad_empaque === 'UN'
+                                        ? 'Unidades x Empaque'
+                                        : 'Peso x Empaque (KG)'}
+                            </label>
+                            <input type="number" step="0.01" name="medida_empaque_unidad" required
+                                placeholder={
+                                    insumoSeleccionadoCompra?.unidad_empaque === 'LT' ? 'Ej: 5'
+                                    : insumoSeleccionadoCompra?.unidad_empaque === 'UN' ? 'Ej: 10 (dosis, frascos...)'
+                                    : 'Ej: 40'
+                                }
                                 className="w-full bg-[#F4F6F4] rounded-2xl p-4 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]" />
                         </div>
                     </div>
