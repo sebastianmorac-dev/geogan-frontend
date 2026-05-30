@@ -2,9 +2,11 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
 import DashboardPage from './pages/DashboardPage';
+import CampoPage from './pages/CampoPage';
 import RegisterAnimalPage from './pages/RegisterAnimalPage';
 import HojaDeVidaAnimal from './pages/HojaDeVidaAnimal';
 import EditAnimalPage from './pages/EditAnimalPage';
+import { Toaster } from 'react-hot-toast';
 
 /**
  * App — GeoGan
@@ -20,13 +22,16 @@ import EditAnimalPage from './pages/EditAnimalPage';
  */
 export default function App() {
   return (
-    <Routes>
+    <>
+      <Toaster position="top-right" />
+      <Routes>
       {/* Ruta pública */}
       <Route path="/login" element={<LoginPage />} />
 
       {/* Rutas protegidas */}
       <Route element={<ProtectedRoute />}>
         <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/campo" element={<CampoPage />} />
         <Route path="/registrar-animal" element={<RegisterAnimalPage />} />
 
         {/* NUEVAS RUTAS: Separación de lectura y edición */}
@@ -40,5 +45,6 @@ export default function App() {
       {/* Fallback → dashboard (si autenticado) o login (si no) */}
       <Route path="*" element={<Navigate to="/dashboard" replace />} />
     </Routes>
+    </>
   );
 }

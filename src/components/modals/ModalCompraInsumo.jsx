@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import api from '../../api/client'; // Asegúrate de que esta ruta apunte a tu configuracion de Axios
+import api from '../../api/client';
+import { notifyError } from '../../utils/notify'; // Asegúrate de que esta ruta apunte a tu configuracion de Axios
 
 export default function ModalCompraInsumo({ isOpen, onClose, idFinca, insumosDisponibles, onCompraGuardada }) {
     // Estados del formulario
@@ -33,7 +34,7 @@ export default function ModalCompraInsumo({ isOpen, onClose, idFinca, insumosDis
             const payload = {
                 id_insumo: parseInt(idInsumo),
                 cantidad_bultos: parseInt(cantidadBultos), // El backend exige int
-                peso_bulto_kg: parseFloat(pesoBulto),      // El backend exige float
+                medida_empaque_unidad: parseFloat(pesoBulto), // Alineado con CompraInsumoCreate del backend
                 precio_bulto_neto: parseFloat(precioBulto), // El backend exige float
                 costo_flete_total: parseFloat(fleteTotal) || 0 // Opcional, por defecto 0
                 // Nota: Omitimos fecha_compra para que el backend use la de hoy por defecto
@@ -54,7 +55,7 @@ export default function ModalCompraInsumo({ isOpen, onClose, idFinca, insumosDis
             
         } catch (error) {
             console.error("Error registrando compra:", error);
-            alert("No se pudo guardar la compra. Revisa la consola o la pestaña Network.");
+            notifyError("No se pudo guardar la compra. Revisa la consola o la pestaña Network.");
         } finally {
             setCargando(false);
         }
@@ -79,7 +80,7 @@ export default function ModalCompraInsumo({ isOpen, onClose, idFinca, insumosDis
                             <option value="">Selecciona un insumo...</option>
                             {insumosDisponibles?.map(insumo => (
                                 <option key={insumo.id_insumo} value={insumo.id_insumo}>
-                                    {insumo.nombre_insumo} (Stock actual: {insumo.stock_actual_kg} kg)
+                                    {insumo.nombre_insumo} (Stock actual: {insumo.stock_actual_unidad || insumo.stock_actual_kg} {insumo.unidad_empaque || 'kg'})
                                 </option>
                             ))}
                         </select>

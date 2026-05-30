@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import ModalOverlay from './ModalOverlay';
 
-export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, onGuardar, preselectedLote }) {
+export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, animalesActivos = [], onGuardar, preselectedLote }) {
     const [consumoData, setConsumoData] = useState({
         id_insumo: '',
         cantidad: '',
@@ -47,7 +47,7 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                         <option value="">-- Selecciona el Insumo --</option>
                         {insumosBodega.map(i => (
                             <option key={i.id_insumo} value={i.id_insumo}>
-                                {i.nombre_insumo.toUpperCase()} (Stock: {i.stock_actual_kg} kg)
+                                {i.nombre_insumo.toUpperCase()} (Stock: {i.stock_actual_unidad || i.stock_actual_kg} {i.unidad_empaque || 'kg'})
                             </option>
                         ))}
                     </select>
@@ -86,9 +86,16 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                             ))}
                         </select>
                     ) : (
-                        <input type="text" placeholder="Ej: Chapeta 1045" 
+                        <select 
                             className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-sm outline-none"
-                            value={consumoData.id_destino} onChange={(e) => setConsumoData({...consumoData, id_destino: e.target.value})} />
+                            value={consumoData.id_destino} onChange={(e) => setConsumoData({...consumoData, id_destino: e.target.value})}>
+                            <option value="">-- Selecciona el Animal --</option>
+                            {animalesActivos.map(animal => (
+                                <option key={animal.id_animal} value={animal.id_animal}>
+                                    {animal.codigo_identificacion} {animal.nombre ? `(${animal.nombre})` : ''}
+                                </option>
+                            ))}
+                        </select>
                     )}
                 </div>
 
