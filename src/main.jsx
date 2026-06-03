@@ -22,6 +22,13 @@ const queryClient = new QueryClient({
   },
 });
 
+// Fix global: Prevenir que la rueda del ratón cambie los inputs de tipo number al hacer scroll
+document.addEventListener("wheel", function(event){
+  if(document.activeElement.type === "number"){
+      document.activeElement.blur();
+  }
+});
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>

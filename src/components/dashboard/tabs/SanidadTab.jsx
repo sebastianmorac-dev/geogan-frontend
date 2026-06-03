@@ -6,6 +6,7 @@ import useAuthStore from '../../../store/authStore';
 export default function SanidadTab({ setShowTratamientoGrupalModal, cleanId, allAnimales }) {
     const [historial, setHistorial] = useState([]);
     const [cargando, setCargando] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
     const user = useAuthStore((state) => state.user);
 
     // Cargar historial sanitario real: consultamos el historial de cada animal activo de la finca
@@ -78,9 +79,18 @@ export default function SanidadTab({ setShowTratamientoGrupalModal, cleanId, all
 
                 {/* HISTORIAL CLÍNICO (COLUMNA 2 y 3) */}
                 <div className="lg:col-span-2 bg-white rounded-[40px] p-10 border border-[#E6F4D7] shadow-sm">
-                    <div className="flex justify-between items-center mb-8">
-                        <h4 className="text-xl font-black uppercase text-[#11261F]">Libreta de Medicamentos</h4>
-                        <button onClick={() => setShowTratamientoGrupalModal(true)} className="bg-[#8CB33E] text-white px-8 py-4 rounded-2xl text-xs font-black uppercase shadow-lg hover:bg-[#7a9d35]">+ Registrar Tratamiento</button>
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+                        <h4 className="text-xl font-black uppercase text-[#11261F] whitespace-nowrap">Libreta de Medicamentos</h4>
+                        <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
+                            <input 
+                                type="text" 
+                                placeholder="Buscar por ID o Medicamento..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="w-full md:w-64 bg-white border border-slate-200 rounded-2xl py-3 px-4 text-xs font-bold text-slate-700 outline-none focus:border-[#8CB33E] transition-colors shadow-sm"
+                            />
+                            <button onClick={() => setShowTratamientoGrupalModal(true)} className="bg-[#8CB33E] text-white px-8 py-3.5 rounded-2xl text-xs font-black uppercase shadow-lg hover:bg-[#7a9d35] whitespace-nowrap">+ Registrar Tratamiento</button>
+                        </div>
                     </div>
                     <table className="w-full text-left">
                         <thead className="bg-[#F4F6F4] text-[10px] font-black uppercase text-gray-500 tracking-widest">
@@ -101,8 +111,8 @@ export default function SanidadTab({ setShowTratamientoGrupalModal, cleanId, all
                                         <span className="animate-pulse">Cargando historial clínico...</span>
                                     </td>
                                 </tr>
-                            ) : historial.length > 0 ? (
-                                historial.map((registro, idx) => (
+                            ) : historial.filter(r => (r.codigo_animal || '').toLowerCase().includes(searchTerm.toLowerCase()) || (r.producto || '').toLowerCase().includes(searchTerm.toLowerCase())).length > 0 ? (
+                                historial.filter(r => (r.codigo_animal || '').toLowerCase().includes(searchTerm.toLowerCase()) || (r.producto || '').toLowerCase().includes(searchTerm.toLowerCase())).map((registro, idx) => (
                                     <tr key={registro.id_sanitario || idx} className="hover:bg-[#F4F6F4]/50 transition-colors">
                                         <td className="px-6 py-4 text-sm font-bold text-gray-700">
                                             {registro.fecha_aplicacion ? new Date(registro.fecha_aplicacion).toLocaleDateString('es-CO') : '-'}

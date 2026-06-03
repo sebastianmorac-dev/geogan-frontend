@@ -131,22 +131,38 @@ export default function useDashboardData() {
         }
     }, [cleanId]);
 
-    // 🧠 5. El Cerebro (Analíticas)
+    // 🧠 5. El Cerebro (Analíticas y Equipo)
+    const [equipoActividad, setEquipoActividad] = useState(null);
+    
     const fetchAnalytics = useCallback(async () => {
         if (!cleanId) return;
         try {
-            const res = await api.get(`/api/v1/analytics/finca/${cleanId}/`);
-            setAlertasInteligentes(res.data.alertas_activas || []);
+            const [resAlertas, resEquipo] = await Promise.all([
+                api.get(`/api/v1/analytics/finca/${cleanId}/`),
+                api.get(`/api/v1/analytics/finca/${cleanId}/equipo`)
+            ]);
+            setAlertasInteligentes(resAlertas.data.alertas_activas || []);
+            setEquipoActividad(resEquipo.data || null);
         } catch (error) {
-            console.error("Error cargando analíticas:", error);
+            console.error("Error cargando analíticas o equipo:", error);
         }
     }, [cleanId]);
 
-    // 🌍 6. El "Big Bang" (Arranque Inicial)
+    const loadNutricion = useCallback(async () => {
+        if (!cleanId) return;
+        try {
+            const res = await api.get(`/insumos/historial-nutricion?finca_id=${cleanId}`);
+            setHistorialNutricion(res.data || []);
+        } catch (error) {
+            console.error("Error cargando nutricion:", error);
+        }
+    }, [cleanId]);
+
+    // 🚀 6. El "Big Bang" (Arranque Inicial)
     const loadAllData = useCallback(async () => {
         if (!cleanId) return;
-        await Promise.all([loadAnimales(), loadInsumos(), loadLotes(), loadParametros(), fetchAnalytics()]);
-    }, [cleanId, loadAnimales, loadInsumos, loadLotes, loadParametros, fetchAnalytics]);
+        await Promise.all([loadAnimales(), loadInsumos(), loadLotes(), loadParametros(), fetchAnalytics(), loadNutricion()]);
+    }, [cleanId, loadAnimales, loadInsumos, loadLotes, loadParametros, fetchAnalytics, loadNutricion]);
 
     // ✨ Efecto Mágico: Calcula Stats Reactivamente
     useEffect(() => {
@@ -559,7 +575,7 @@ export default function useDashboardData() {
     // =========================================================================
     // 🩺 TRATAMIENTO GRUPAL (NUEVO ENDPOINT MASIVO)
     // =========================================================================
-    const handleGuardarTratamientoGrupal = async (e) => {
+    const handleGuardarTratamientoGrupal = async (e, animalesExcluidos = []) => {
         e.preventDefault();
         const formData = new FormData(e.target);
 
@@ -572,17 +588,18 @@ export default function useDashboardData() {
 
         // Armamos el Payload estricto que pide el backend
         const payload = {
+            id_finca: parseInt(String(fincaSel).split(':')[0]),
             id_lote: loteActual.id_lote,
-            medicamento: formData.get('medicamento'),
-            dosis_por_animal: formData.get('dosis'),
-            dias_retiro: parseInt(formData.get('dias_retiro')) || 0,
-            via_aplicacion: formData.get('via_aplicacion'),
             tipo_evento: formData.get('tipo_evento') || "Tratamiento Médico",
-            observaciones: formData.get('observaciones') || "Aplicación grupal desde Dashboard"
+            medicamento_insumo: formData.get('medicamento'),
+            dosis: formData.get('dosis'),
+            diagnostico_motivo: formData.get('observaciones') || "Control Sanitario Rutinario",
+            fecha_aplicacion: new Date().toISOString().split('T')[0],
+            animales_excluidos: animalesExcluidos
         };
 
         try {
-            const response = await api.post('/sanidad/tratamiento-grupal', payload);
+            const response = await api.post('/animales/tratamiento-grupal/', payload);
             
             notifySuccess(`✅ Éxito: ${response.data.animales_tratados} animales fueron tratados y su historial clínico ha sido actualizado.`);
             
@@ -654,6 +671,6 @@ export default function useDashboardData() {
         handleGuardarEdicionLote, handleSuministro, toggleLoteMasivo,
         handleGuardarEdicionInsumo, handleArchivoSeleccionado, handleImportarPesajesMasivos,
         handleGuardarTratamientoGrupal, animalesSueltos, biomasaGeneral,
-        loteGeneralVirtual, lotesReales, lotesEnriquecidos, fetchAnalytics
+        loteGeneralVirtual, lotesReales, lotesEnriquecidos, fetchAnalytics, equipoActividad
     };
 }

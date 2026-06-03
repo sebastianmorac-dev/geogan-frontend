@@ -58,12 +58,15 @@ export default function HojaDeVidaAnimal() {
 
             reset({ peso: resAnimal.data.peso, observaciones: '' });
 
-            // Traer los lotes disponibles de la finca del animal
+            // Stop blocking the UI
+            setLoading(false);
+
+            // Traer los lotes disponibles de la finca del animal (asincrono no bloqueante)
             if (resAnimal.data.id_finca) {
                 try {
                     const resLotes = await api.get(`/lotes/finca/${resAnimal.data.id_finca}`);
                     setLotes(resLotes.data || []);
-                } catch (e) { console.warn("Módulo de lotes no responde", e); }
+                } catch (e) { console.error("Error trayendo lotes:", e); }
 
                 // 🧬 MOTOR DE RENTABILIDAD: Traer animales del mismo lote para comparar GMD
                 if (resAnimal.data.id_lote) {
@@ -609,32 +612,52 @@ export default function HojaDeVidaAnimal() {
                                 </table>
                             )}
 
-                            {activeTab === 'salud' && (
-                                <div className="space-y-8">
-                                    {registroActivo && (
-                                        <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[36px] flex items-center gap-8 animate-pulse">
-                                            <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-red-200">🛡️</div>
-                                            <div>
-                                                <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-1">Alerta: Retiro Activo</p>
-                                                <p className="text-lg font-bold text-[#11261F] leading-tight italic">Animal en tratamiento con {registroActivo.medicamento}. NO APTO PARA VENTA.</p>
-                                            </div>
-                                        </div>
-                                    )}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                        {historialSanitario.map((s, i) => (
-                                            <div key={i} className="p-8 bg-[#F4F6F4] rounded-[32px] border border-[#E6F4D7] relative group">
-                                                <p className="text-[10px] font-black text-[#8CB33E] uppercase mb-2">{s.fecha_aplicacion}</p>
-                                                <p className="text-xl font-black">{s.medicamento}</p>
-                                                <div className="flex justify-between mt-4">
-                                                    <span className="text-[9px] font-black bg-white px-3 py-1 rounded-full uppercase text-gray-500">Retiro: {s.dias_retiro}d</span>
-                                                    <span className="text-[9px] font-black bg-[#11261F] text-white px-3 py-1 rounded-full uppercase">Vía: {s.via_aplicacion}</span>
+                                {activeTab === 'salud' && (
+                                    <div className="space-y-8">
+                                        {registroActivo && (
+                                            <div className="bg-red-50 border-2 border-red-100 p-8 rounded-[36px] flex items-center gap-8 animate-pulse">
+                                                <div className="w-16 h-16 bg-white rounded-2xl flex items-center justify-center text-3xl shadow-sm border border-red-200">🛡️</div>
+                                                <div>
+                                                    <p className="text-xs font-black text-red-600 uppercase tracking-widest mb-1">Alerta: Retiro Activo</p>
+                                                    <p className="text-lg font-bold text-[#11261F] leading-tight italic">Animal en tratamiento con {registroActivo.medicamento || registroActivo.producto}. NO APTO PARA VENTA.</p>
                                                 </div>
                                             </div>
-                                        ))}
+                                        )}
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            {historialSanitario.map((s, i) => (
+                                                <div key={i} className="p-8 bg-white rounded-[32px] border border-[#E6F4D7] shadow-sm relative group hover:border-[#8CB33E] transition-all">
+                                                    <div className="flex justify-between items-start mb-4">
+                                                        <div>
+                                                            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{s.fecha_aplicacion}</p>
+                                                            <p className="text-sm font-black text-[#8CB33E] uppercase mt-1">{s.tipo_evento || 'Sanidad'}</p>
+                                                        </div>
+                                                        <span className={`text-[10px] font-black px-3 py-1 rounded-full uppercase ${s.dias_retiro > 0 ? 'bg-red-50 text-red-600' : 'bg-green-50 text-green-600'}`}>
+                                                            {s.dias_retiro > 0 ? `Retiro: ${s.dias_retiro}d` : 'Sin Retiro'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-xl font-black text-[#11261F] mb-1">{s.medicamento || s.producto}</p>
+                                                    <div className="flex gap-4 mt-4 mb-4">
+                                                        <div className="bg-[#F4F6F4] px-4 py-2 rounded-xl">
+                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Dosis</p>
+                                                            <p className="font-bold text-sm text-[#11261F]">{s.dosis || s.dosis_ml || 'N/A'}</p>
+                                                        </div>
+                                                        <div className="bg-[#F4F6F4] px-4 py-2 rounded-xl">
+                                                            <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Vía</p>
+                                                            <p className="font-bold text-sm text-[#11261F]">{s.via_aplicacion || 'N/A'}</p>
+                                                        </div>
+                                                    </div>
+                                                    {s.observaciones && (
+                                                        <div className="bg-yellow-50/50 p-4 rounded-xl border border-yellow-100">
+                                                            <p className="text-[9px] font-black text-yellow-600 uppercase tracking-widest mb-1">Observaciones</p>
+                                                            <p className="text-sm font-medium text-gray-600 italic">{s.observaciones}</p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <button onClick={() => setShowSanitaryModal(true)} className="w-full border-2 border-dashed border-[#E6F4D7] py-8 rounded-[24px] text-gray-400 font-black uppercase text-xs tracking-widest hover:border-[#8CB33E] hover:text-[#8CB33E] transition-all bg-[#F9FBFA]">+ Registrar Evento Clínico</button>
                                     </div>
-                                    <button onClick={() => setShowSanitaryModal(true)} className="w-full border-2 border-dashed border-[#E6F4D7] py-10 rounded-[36px] text-gray-400 font-black uppercase text-xs tracking-widest hover:border-[#8CB33E] transition-all">+ Registrar Aplicación Sanitaria</button>
-                                </div>
-                            )}
+                                )}
                         </div>
                     </section>
                 </div>

@@ -5,6 +5,7 @@
 import React from 'react';
 import ResumenTab from '../tabs/ResumenTab';
 import LotesTab from '../tabs/LotesTab';
+import AnaliticaTab from '../tabs/AnaliticaTab';
 import GanadoEnTransito from '../GanadoEnTransito';
 
 /**
@@ -76,39 +77,93 @@ export default function PropietarioHub({ dashboard }) {
                         </div>
                         <div className="bg-white/10 backdrop-blur-sm rounded-2xl p-6 border border-white/5">
                             <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Población Activa</p>
-                            <p className="text-3xl font-black italic text-white">{totalCabezas} <span className="text-base font-bold text-gray-400">cabezas</span></p>
+                            <p className="text-3xl font-black italic text-white">{Number(totalCabezas).toLocaleString('es-CO')} <span className="text-base font-bold text-gray-400">cabezas</span></p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* PANEL DE PREDICCIONES TEXTUALES */}
-            {predicciones.length > 0 && (
-                <div className="bg-white rounded-[32px] p-8 border border-slate-200 shadow-sm">
-                    <h3 className="text-sm font-black uppercase tracking-widest text-slate-800 mb-6 flex items-center gap-2">
-                        🔮 Rendimiento de Capital por Lote
-                    </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {predicciones.map((pred, idx) => (
-                            <div key={idx} className={`p-5 rounded-2xl border ${pred.badgeColor} transition-all hover:shadow-md`}>
-                                <div className="flex justify-between items-start mb-3">
-                                    <p className="text-sm font-black uppercase">{pred.lote}</p>
-                                    <span className="text-[10px] font-black uppercase px-2 py-1 rounded-lg bg-white/50">
-                                        {pred.rendimiento}%
-                                    </span>
-                                </div>
-                                <p className="text-[10px] font-bold uppercase tracking-wider mb-1">
-                                    Tendencia: {pred.tendencia === 'sobresaliente' ? '📈 Sobresaliente' : 
-                                                pred.tendencia === 'positiva' ? '📈 Positiva' :
-                                                pred.tendencia === 'moderada' ? '➡️ Moderada' :
-                                                pred.tendencia === 'crítica' ? '📉 Crítica' : '⏳ Sin datos'}
-                                </p>
-                                <p className="text-xs font-medium text-slate-700">{pred.sugerencia}</p>
+            {/* NUEVA SECCIÓN: TALENTO Y ADOPCIÓN DIGITAL */}
+            {dashboard.equipoActividad?.operarios && dashboard.equipoActividad.operarios.length > 0 && (
+                <div className="bg-white rounded-[32px] p-8 md:p-10 border border-[#E6F4D7] shadow-sm">
+                    <div className="mb-8">
+                        <h3 className="text-2xl font-black text-[#11261F] uppercase tracking-tight flex items-center gap-3">
+                            <span className="bg-[#8CB33E]/20 text-[#8CB33E] p-2 rounded-xl text-2xl">👥</span> 
+                            Rendimiento y Adopción Digital
+                        </h3>
+                        <p className="text-sm text-gray-500 font-medium mt-2 max-w-3xl">
+                            Monitoreo del volumen de actividad y trazabilidad de tu equipo. Estos indicadores reflejan la interacción del personal con GeoGan en el registro de datos vitales (pesajes y sanidad).
+                        </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* LÍDERES EN PESAJES */}
+                        <div className="bg-gradient-to-br from-[#F4F6F4] to-white rounded-3xl p-6 border border-[#E6F4D7]">
+                            <h4 className="text-[10px] font-black uppercase text-[#8CB33E] tracking-widest mb-4 flex items-center gap-2">
+                                ⚖️ Líderes en Registro de Peso (Últimos 7 días)
+                            </h4>
+                            <div className="space-y-3">
+                                {[...dashboard.equipoActividad.operarios]
+                                    .sort((a, b) => b.pesajes_semana - a.pesajes_semana)
+                                    .slice(0, 3)
+                                    .map((op, i) => (
+                                        <div key={op.id_usuario} className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-amber-100 text-amber-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                    #{i + 1}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-[#11261F]">{op.nombre_completo}</p>
+                                                    <p className="text-[9px] uppercase font-bold text-gray-400">{op.rol}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-black text-[#8CB33E]">{op.pesajes_semana}</p>
+                                                <p className="text-[9px] uppercase font-bold text-gray-400 tracking-widest">Registros</p>
+                                            </div>
+                                        </div>
+                                    ))}
                             </div>
-                        ))}
+                        </div>
+
+                        {/* LÍDERES EN SANIDAD */}
+                        <div className="bg-gradient-to-br from-blue-50/50 to-white rounded-3xl p-6 border border-blue-100">
+                            <h4 className="text-[10px] font-black uppercase text-blue-500 tracking-widest mb-4 flex items-center gap-2">
+                                💉 Liderazgo en Sanidad (Últimos 7 días)
+                            </h4>
+                            <div className="space-y-3">
+                                {[...dashboard.equipoActividad.operarios]
+                                    .sort((a, b) => b.sanidad_semana - a.sanidad_semana)
+                                    .slice(0, 3)
+                                    .map((op, i) => (
+                                        <div key={op.id_usuario} className="flex items-center justify-between bg-white p-4 rounded-2xl shadow-sm border border-gray-50">
+                                            <div className="flex items-center gap-4">
+                                                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-black text-xs ${i === 0 ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-500'}`}>
+                                                    #{i + 1}
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm font-black text-[#11261F]">{op.nombre_completo}</p>
+                                                    <p className="text-[9px] uppercase font-bold text-gray-400">{op.rol}</p>
+                                                </div>
+                                            </div>
+                                            <div className="text-right">
+                                                <p className="text-xl font-black text-blue-500">{op.sanidad_semana}</p>
+                                                <p className="text-[9px] uppercase font-bold text-gray-400 tracking-widest">Aplicaciones</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                            </div>
+                        </div>
                     </div>
                 </div>
             )}
+
+            {/* NUEVA SECCIÓN: BUSINESS INTELLIGENCE Y ORÁCULO */}
+            <AnaliticaTab 
+                fincaActual={dashboard.fincaActual}
+                allAnimales={dashboard.allAnimales}
+                lotesReales={dashboard.lotesReales}
+            />
 
             {/* TABS EXISTENTES */}
             <div className="space-y-8">

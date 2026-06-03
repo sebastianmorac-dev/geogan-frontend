@@ -3,8 +3,9 @@ import React, { useState, useEffect } from 'react';
 import ModalOverlay from './ModalOverlay';
 import api from '../../api/client';
 
-export default function ModalTratamientoGrupal({ isOpen, onClose, loteActual, onGuardar }) {
+export default function ModalTratamientoGrupal({ isOpen, onClose, loteActual, animalesDelLote = [], onGuardar }) {
     const [medicamentosBodega, setMedicamentosBodega] = useState([]);
+    const [animalesExcluidos, setAnimalesExcluidos] = useState(new Set());
 
     // 1. CARGA DE MEDICAMENTOS DESDE LA BODEGA (Solo Sanidad)
     useEffect(() => {
@@ -28,7 +29,11 @@ export default function ModalTratamientoGrupal({ isOpen, onClose, loteActual, on
 
     return (
         <ModalOverlay isOpen={isOpen} onClose={onClose} title="TRATAMIENTO GRUPAL" maxWidth="lg">
-            <form onSubmit={onGuardar} className="space-y-6">
+            <form onSubmit={(e) => {
+                // Pass the excluded animals to the handler
+                e.preventDefault();
+                onGuardar(e, Array.from(animalesExcluidos));
+            }} className="space-y-6">
 
                 {/* LÓGICA DEL EMBUDO GEOGAN */}
                 <div className="bg-[#11261F] text-white p-5 rounded-3xl flex justify-between items-center">
@@ -114,12 +119,41 @@ export default function ModalTratamientoGrupal({ isOpen, onClose, loteActual, on
                         className="w-full bg-[#F4F6F4] border-2 border-transparent rounded-2xl p-4 text-sm font-bold outline-none focus:border-[#8CB33E] transition-colors resize-none" />
                 </div>
 
+                {/* SELECCIÓN DINÁMICA DE ANIMALES */}
+                {animalesDelLote.length > 0 && (
+                    <div className="space-y-2 max-h-48 overflow-y-auto bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <label className="text-[10px] font-black text-gray-400 uppercase tracking-widest block mb-2">Desmarcar Animales (Opcional)</label>
+                        <p className="text-xs text-gray-500 mb-3">Si algún animal de este lote NO va a recibir el tratamiento, desmárquelo aquí:</p>
+                        <div className="space-y-2">
+                            {animalesDelLote.map(animal => (
+                                <label key={animal.id_animal} className="flex items-center gap-3 p-2 hover:bg-gray-100 rounded-lg cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        className="w-5 h-5 rounded border-gray-300 text-[#8CB33E] focus:ring-[#8CB33E]"
+                                        checked={!animalesExcluidos.has(animal.id_animal)}
+                                        onChange={(e) => {
+                                            const newExcluidos = new Set(animalesExcluidos);
+                                            if (e.target.checked) {
+                                                newExcluidos.delete(animal.id_animal);
+                                            } else {
+                                                newExcluidos.add(animal.id_animal);
+                                            }
+                                            setAnimalesExcluidos(newExcluidos);
+                                        }}
+                                    />
+                                    <span className="text-sm font-bold text-gray-700">ID: {animal.codigo_identificacion}</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* ALERTA UX EMPÁTICA */}
                 {loteActual && (
                     <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-start gap-3">
                         <span className="text-xl">⚠️</span>
                         <p className="text-xs font-bold text-amber-800 leading-relaxed">
-                            Al guardar, se registrará el tratamiento en el historial clínico de <strong>todos los {loteActual.cabezas_reales || loteActual.cantidad_animales || 0} animales</strong> de este lote. Esta acción no se puede deshacer.
+                            Al guardar, se registrará el tratamiento a <strong>{(loteActual.cabezas_reales || loteActual.cantidad_animales || 0) - animalesExcluidos.size} animales</strong> de este lote. Esta acción no se puede deshacer.
                         </p>
                     </div>
                 )}

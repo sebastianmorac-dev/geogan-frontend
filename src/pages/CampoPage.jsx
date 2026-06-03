@@ -10,6 +10,7 @@ import { notifySuccess, notifyError, notifyWarning } from '../utils/notify';
 import { Scale, ArrowRightLeft, Stethoscope, PlusCircle, CheckCircle, Loader2, Wheat, AlertTriangle, Bluetooth, BluetoothConnected, Barcode, UploadCloud, Baby, ClipboardPlus } from 'lucide-react';
 import ImportPesajeModal from '../components/modals/ImportPesajeModal';
 import MoverGanadoPage from './MoverGanadoPage';
+import { FlujoSanidad, FlujoNutricion } from './CampoComponents';
 import logo from '../assets/logo_geogan.png';
 
 /**
@@ -111,25 +112,23 @@ export default function CampoPage() {
     // --- UI: Selector de Finca (siempre visible en el header del campo) ---
     const HeaderCampo = () => {
         return (
-            <header className="bg-[#064E3B] p-4 flex items-center justify-between shadow-md">
-                <div className="bg-white px-3 py-2 rounded-lg shadow-sm">
-                    <img src="/logo-geogan-icon.png" alt="GeoGan" className="h-8 w-auto" />
-                </div>
+            <header className="bg-white border-b border-slate-200 h-20 px-4 md:px-6 flex justify-between items-center shadow-sm">
+                <img src={logo} alt="GeoGan" style={{ height: '100px', margin: '-20px 0' }} className="object-contain" />
                 
                 {/* Información de Finca con manejo de estado y botones */}
                 <div className="flex items-center gap-4">
-                    <div className="text-right">
-                        <p className="text-[10px] uppercase tracking-wider text-emerald-100 font-medium">Finca Activa</p>
-                        <p className="text-white font-bold text-sm truncate max-w-[150px]">
+                    <div className="text-right hidden sm:block">
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Finca Activa</p>
+                        <p className="text-slate-800 font-black text-sm truncate max-w-[150px]">
                             {fincaActual?.nombre || "Sin Finca"}
                         </p>
                     </div>
                     {user?.rol === 'superadmin' && (
-                        <button onClick={() => navigate('/dashboard')} className="bg-white/20 text-white px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-white/30 transition-colors">
+                        <button onClick={() => navigate('/dashboard')} className="bg-violet-100 text-violet-700 border border-violet-200 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-violet-200 transition-colors">
                             🛠️ Dash
                         </button>
                     )}
-                    <button onClick={logout} className="text-white bg-white/10 w-10 h-10 rounded-xl font-bold text-lg flex items-center justify-center hover:bg-red-500 transition-colors">✕</button>
+                    <button onClick={logout} className="text-red-500 bg-red-50 border border-red-100 w-10 h-10 rounded-xl font-bold text-lg flex items-center justify-center hover:bg-red-500 hover:text-white transition-colors">✕</button>
                 </div>
             </header>
         );
@@ -140,9 +139,9 @@ export default function CampoPage() {
         const botones = [
             { label: "Pesaje Rápido", icon: Scale, accion: () => fincaSel ? setVista('pesaje') : notifyWarning("Seleccione una finca primero") },
             { label: "Mover Ganado", icon: ArrowRightLeft, accion: () => fincaSel ? setVista('mover') : notifyWarning("Seleccione una finca primero") },
-            { label: "Sanidad", icon: Stethoscope, accion: () => notifyWarning("🚧 Módulo de Sanidad en desarrollo.") },
+            { label: "Sanidad", icon: Stethoscope, accion: () => fincaSel ? setVista('vacuna') : notifyWarning("Seleccione una finca primero") },
             { label: "Ingreso de Animales", icon: ClipboardPlus, accion: () => fincaSel ? setVista('nacimiento') : notifyWarning("Seleccione una finca primero") },
-            { label: "Dar Alimento", icon: Wheat, accion: () => notifyWarning("🚧 Módulo de Alimentación en desarrollo.") },
+            { label: "Dar Alimento", icon: Wheat, accion: () => fincaSel ? setVista('consumo') : notifyWarning("Seleccione una finca primero") },
             { label: "Registrar Baja", icon: AlertTriangle, danger: true, accion: () => notifyWarning("🚧 Módulo de Bajas en desarrollo.") }
         ];
 
@@ -767,6 +766,8 @@ export default function CampoPage() {
                     {vista === 'pesaje' && <FlujoPesaje />}
                     {vista === 'nacimiento' && <FlujoNacimiento />}
                     {vista === 'mover' && <MoverGanadoPage fincaSel={fincaSel} onVolver={() => setVista('menu')} />}
+                    {vista === 'vacuna' && <FlujoSanidad fincaSel={fincaSel} animales={animales} setVista={setVista} />}
+                    {vista === 'consumo' && <FlujoNutricion fincaSel={fincaSel} setVista={setVista} />}
                 </>
             )}
         </div>

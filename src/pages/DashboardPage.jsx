@@ -16,7 +16,10 @@ import LotesTab from '../components/dashboard/tabs/LotesTab';
 import NutricionTab from '../components/dashboard/tabs/NutricionTab';
 import SanidadTab from '../components/dashboard/tabs/SanidadTab';
 import BodegaTab from '../components/dashboard/tabs/BodegaTab';
+import AnaliticaTab from '../components/dashboard/tabs/AnaliticaTab';
 import ImportarGanado from '../components/dashboard/ImportarGanado';
+import Sidebar from '../components/layout/Sidebar';
+import TierraTab from '../components/dashboard/tabs/TierraTab';
 
 // --- Modales globales (viven en este nivel) ---
 import ModalAjustarPrecio from '../components/modals/ModalAjustarPrecio';
@@ -51,6 +54,8 @@ export default function DashboardPage() {
     // --- Tabs para superadmin (vista completa con todas las pestañas) ---
     const allTabs = [
         { id: 'resumen', label: 'Mi Resumen' },
+        { id: 'analitica', label: 'Visión Estratégica' },
+        { id: 'tierra', label: 'Mapeo de Tierra' },
         { id: 'lotes', label: 'Gestión de Lotes' },
         { id: 'nutricion', label: 'Nutrición' },
         { id: 'sanidad', label: 'Libreta de Vacunas' },
@@ -102,7 +107,13 @@ export default function DashboardPage() {
                     </p>
                 </div>
             ) : (
-                <main className="mt-32 px-12 pb-20 max-w-[1600px] mx-auto w-full animate-in fade-in duration-500">
+                <>
+                    {/* Render Sidebar for superadmin */}
+                    {rol === 'superadmin' && (
+                        <Sidebar activeTab={dashboard.activeTab} setActiveTab={(tab) => { dashboard.setActiveTab(tab); dashboard.setSelectedLote(null); }} />
+                    )}
+
+                    <main className={`mt-24 pb-20 mx-auto w-full animate-in fade-in duration-500 ${rol === 'superadmin' ? 'ml-64 px-12 py-8 max-w-[calc(100%-16rem)]' : 'px-12 mt-32 max-w-[1600px]'}`}>
 
                     {/* ════════ TÍTULO DEL PANEL POR ROL ════════ */}
                     <div className="mb-10 flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
@@ -121,7 +132,8 @@ export default function DashboardPage() {
                             )}
                         </div>
 
-                        {/* Solo el superadmin ve el tab-bar completo */}
+                        {/* Solo el superadmin ve el tab-bar completo (Deprecated: Usando Sidebar ahora, pero mantenemos por si el usuario achica la pantalla luego lo volvemos responsive) */}
+                        {/* 
                         {rol === 'superadmin' && (
                             <div className="flex gap-2 bg-white p-2 rounded-2xl border border-slate-200 shadow-sm flex-wrap">
                                 {allTabs.map(tab => (
@@ -132,6 +144,7 @@ export default function DashboardPage() {
                                 ))}
                             </div>
                         )}
+                        */}
                     </div>
 
                     {/* ════════ CONTENIDO POR ROL ════════ */}
@@ -146,7 +159,19 @@ export default function DashboardPage() {
                             {/* Superadmin: vista con tabs completa (preservada del Sprint 1) */}
                             {rol === 'superadmin' && (
                                 <>
-                                    {dashboard.activeTab === 'resumen'   && <ResumenTab {...dashboard} />}
+                                    {dashboard.activeTab === 'resumen' && (
+                                        <ResumenTab {...dashboard} />
+                                    )}
+                                    {dashboard.activeTab === 'analitica' && (
+                                        <RoleGuard allowedRoles={['superadmin', 'propietario', 'administrador', 'contador']}>
+                                            <AnaliticaTab 
+                                                fincaActual={dashboard.fincaActual}
+                                                allAnimales={dashboard.allAnimales}
+                                                lotesReales={dashboard.lotesReales}
+                                            />
+                                        </RoleGuard>
+                                    )}
+                                    {dashboard.activeTab === 'tierra'    && <TierraTab {...dashboard} />}
                                     {dashboard.activeTab === 'lotes'     && <LotesTab {...dashboard} />}
                                     {dashboard.activeTab === 'nutricion' && <NutricionTab {...dashboard} />}
                                     {dashboard.activeTab === 'sanidad'   && <SanidadTab {...dashboard} />}
@@ -157,6 +182,7 @@ export default function DashboardPage() {
                     )}
 
                 </main>
+                </>
             )}
 
             {/* ════════════════════════════════════════════
@@ -300,6 +326,36 @@ export default function DashboardPage() {
                                 </select>
                             </div>
                             <div>
+                                <label className="text-xs font-black uppercase text-slate-400 ml-2 mb-2 block">Responsable(s) (Operario/Encargado)</label>
+                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
+                                    {dashboard.equipoActividad?.operarios?.length > 0 ? dashboard.equipoActividad.operarios.map(op => {
+                                        const isSelected = dashboard.nuevoLoteData.responsables_ids?.includes(op.id_usuario);
+                                        return (
+                                            <label key={op.id_usuario} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-4 h-4 text-[#8CB33E] rounded border-gray-300"
+                                                    checked={isSelected || false}
+                                                    onChange={(e) => {
+                                                        const currentIds = dashboard.nuevoLoteData.responsables_ids || [];
+                                                        const newIds = e.target.checked 
+                                                            ? [...currentIds, op.id_usuario] 
+                                                            : currentIds.filter(id => id !== op.id_usuario);
+                                                        dashboard.setNuevoLoteData({ ...dashboard.nuevoLoteData, responsables_ids: newIds });
+                                                    }}
+                                                />
+                                                <div>
+                                                    <p className="text-sm font-black text-[#11261F] leading-none">{op.nombre_completo}</p>
+                                                    <p className="text-[10px] uppercase font-bold text-gray-400 mt-1">{op.rol}</p>
+                                                </div>
+                                            </label>
+                                        );
+                                    }) : (
+                                        <p className="text-xs text-gray-400 font-bold p-2 text-center">No hay operarios registrados en la finca.</p>
+                                    )}
+                                </div>
+                            </div>
+                            <div>
                                 <label className="text-xs font-black uppercase text-slate-400 ml-2">Meta de ganancia diaria 📈 (kg/día)</label>
                                 <input type="number" step="0.01" placeholder="Ej: 0.6" className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-5 font-black outline-none mt-2 text-slate-800"
                                     value={dashboard.nuevoLoteData.gmd_meta} onChange={(e) => dashboard.setNuevoLoteData({ ...dashboard.nuevoLoteData, gmd_meta: e.target.value })} />
@@ -332,6 +388,36 @@ export default function DashboardPage() {
                                     <option value="Lechería">Lechería</option>
                                     <option value="Enfermería">Enfermería / Cuarentena</option>
                                 </select>
+                            </div>
+                            <div>
+                                <label className="text-xs font-black uppercase text-slate-400 ml-2 mb-2 block">Responsable(s) (Operario/Encargado)</label>
+                                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 max-h-40 overflow-y-auto space-y-2">
+                                    {dashboard.equipoActividad?.operarios?.length > 0 ? dashboard.equipoActividad.operarios.map(op => {
+                                        const isSelected = dashboard.loteEditData.responsables_ids?.includes(op.id_usuario);
+                                        return (
+                                            <label key={op.id_usuario} className="flex items-center gap-3 p-2 hover:bg-white rounded-xl cursor-pointer transition-colors border border-transparent hover:border-slate-200">
+                                                <input 
+                                                    type="checkbox" 
+                                                    className="w-4 h-4 text-[#8CB33E] rounded border-gray-300"
+                                                    checked={isSelected || false}
+                                                    onChange={(e) => {
+                                                        const currentIds = dashboard.loteEditData.responsables_ids || [];
+                                                        const newIds = e.target.checked 
+                                                            ? [...currentIds, op.id_usuario] 
+                                                            : currentIds.filter(id => id !== op.id_usuario);
+                                                        dashboard.setLoteEditData({ ...dashboard.loteEditData, responsables_ids: newIds });
+                                                    }}
+                                                />
+                                                <div>
+                                                    <p className="text-sm font-black text-[#11261F] leading-none">{op.nombre_completo}</p>
+                                                    <p className="text-[10px] uppercase font-bold text-gray-400 mt-1">{op.rol}</p>
+                                                </div>
+                                            </label>
+                                        );
+                                    }) : (
+                                        <p className="text-xs text-gray-400 font-bold p-2 text-center">No hay operarios registrados en la finca.</p>
+                                    )}
+                                </div>
                             </div>
                             <div>
                                 <label className="text-xs font-black uppercase text-slate-400 ml-2">Meta de ganancia diaria 📈 (kg/día)</label>
@@ -467,6 +553,7 @@ export default function DashboardPage() {
                 isOpen={dashboard.showTratamientoGrupalModal}
                 onClose={() => dashboard.setShowTratamientoGrupalModal(false)}
                 loteActual={dashboard.lotesEnriquecidos.find(l => l.id_lote === dashboard.selectedLote) || { nombre: 'Selecciona un Lote', cabezas_reales: 0 }}
+                animalesDelLote={dashboard.allAnimales.filter(a => a.id_lote === dashboard.selectedLote)}
                 onGuardar={dashboard.handleGuardarTratamientoGrupal}
             />
         </div>
