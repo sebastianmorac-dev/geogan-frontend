@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.jsx';
 import './index.css';
+import { registerSW } from 'virtual:pwa-register';
+
+// Registro del Service Worker para PWA
+if ('serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 /**
  * QueryClient — GeoGan
@@ -20,6 +26,13 @@ const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
     },
   },
+});
+
+// Fix global: Prevenir que la rueda del ratón cambie los inputs de tipo number al hacer scroll
+document.addEventListener("wheel", function(event){
+  if(document.activeElement.type === "number"){
+      document.activeElement.blur();
+  }
 });
 
 createRoot(document.getElementById('root')).render(

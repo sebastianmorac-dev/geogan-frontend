@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import ModalOverlay from './ModalOverlay';
 
-export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, onGuardar, preselectedLote }) {
+export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, animalesActivos = [], onGuardar, preselectedLote }) {
     const [consumoData, setConsumoData] = useState({
         id_insumo: '',
         cantidad: '',
@@ -31,7 +31,15 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                     || insumoSeleccionado?.tipo_insumo?.toLowerCase().includes('medicamento');
 
     const handleSubir = () => {
-        onGuardar(consumoData);
+        // Multiplicar la cantidad de bultos/frascos (presentación) por la medida numérica
+        // Ejemplo: 2 bultos de 40kg -> envia 80.
+        const medida = insumoSeleccionado?.medida_empaque_numeric || 1.0;
+        const cantidad_convertida = parseFloat(consumoData.cantidad) * medida;
+        
+        onGuardar({
+            ...consumoData,
+            cantidad_unidad: cantidad_convertida // Backend espera cantidad_unidad
+        });
         // Limpiamos después de enviar
         setConsumoData({ id_insumo: '', cantidad: '', destino_tipo: 'lote', id_destino: '', notas: '', dias_retiro: 0, via_aplicacion: '', motivo: '' });
     };
@@ -45,18 +53,25 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                     <select className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-2xl p-4 font-black text-sm outline-none"
                         value={consumoData.id_insumo} onChange={(e) => setConsumoData({...consumoData, id_insumo: e.target.value})}>
                         <option value="">-- Selecciona el Insumo --</option>
-                        {insumosBodega.map(i => (
-                            <option key={i.id_insumo} value={i.id_insumo}>
-                                {i.nombre_insumo.toUpperCase()} (Stock: {i.stock_actual_unidad} {i.unidad_empaque || 'UN'})
-                            </option>
-                        ))}
+                        {insumosBodega.map(i => {
+                            const empaque = i.unidad_empaque || 'kg';
+                            const medida = i.medida_empaque_numeric || 1;
+                            const stock_bultos = (i.stock_actual_unidad / medida).toFixed(1);
+                            return (
+                                <option key={i.id_insumo} value={i.id_insumo}>
+                                    {i.nombre_insumo.toUpperCase()} (Quedan: {stock_bultos} {empaque}s)
+                                </option>
+                            );
+                        })}
                     </select>
                 </div>
 
                 {/* 2. ¿CUÁNTO SACÓ? */}
                 <div>
-                    <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase">Cantidad Aplicada/Suministrada</label>
-                    <input type="number" placeholder="Ej: 5 (Dosis, Kg, ml)" min="0.1" step="any"
+                    <label className="text-[10px] font-bold text-gray-400 ml-2 uppercase">
+                        Cantidad en {insumoSeleccionado ? `${insumoSeleccionado.unidad_empaque}s` : 'Presentación'}
+                    </label>
+                    <input type="number" placeholder={insumoSeleccionado ? `Ej: Gasté 2 ${insumoSeleccionado.unidad_empaque}s` : "Ej: Gasté 2 bultos/frascos"} min="0.1" step="any"
                         className="w-full bg-[#F4F6F4] border border-[#E6F4D7] rounded-xl p-4 font-black outline-none"
                         value={consumoData.cantidad} onChange={(e) => setConsumoData({...consumoData, cantidad: e.target.value})} />
                 </div>
@@ -86,9 +101,16 @@ export default function ModalConsumo({ isOpen, onClose, insumosBodega, lotes, on
                             ))}
                         </select>
                     ) : (
-                        <input type="text" placeholder="Ej: Chapeta 1045" 
+                        <select 
                             className="w-full bg-white border border-gray-200 rounded-xl p-3 font-bold text-sm outline-none"
-                            value={consumoData.id_destino} onChange={(e) => setConsumoData({...consumoData, id_destino: e.target.value})} />
+                            value={consumoData.id_destino} onChange={(e) => setConsumoData({...consumoData, id_destino: e.target.value})}>
+                            <option value="">-- Selecciona el Animal --</option>
+                            {animalesActivos.map(animal => (
+                                <option key={animal.id_animal} value={animal.id_animal}>
+                                    {animal.codigo_identificacion} {animal.nombre ? `(${animal.nombre})` : ''}
+                                </option>
+                            ))}
+                        </select>
                     )}
                 </div>
 
