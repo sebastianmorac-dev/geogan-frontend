@@ -9,6 +9,7 @@ import logo from '../assets/logo_geogan.png';
 import PropietarioHub from '../components/dashboard/hubs/PropietarioHub';
 import ContadorHub from '../components/dashboard/hubs/ContadorHub';
 import AdministradorHub from '../components/dashboard/hubs/AdministradorHub';
+import PaywallFinanciero from '../components/dashboard/hubs/PaywallFinanciero';
 
 // --- Tabs base (solo para superadmin que necesita la vista completa) ---
 import ResumenTab from '../components/dashboard/tabs/ResumenTab';
@@ -20,6 +21,8 @@ import AnaliticaTab from '../components/dashboard/tabs/AnaliticaTab';
 import ImportarGanado from '../components/dashboard/ImportarGanado';
 import Sidebar from '../components/layout/Sidebar';
 import TierraTab from '../components/dashboard/tabs/TierraTab';
+import EquipoTab from '../components/dashboard/tabs/EquipoTab';
+import MoverGanadoPage from './MoverGanadoPage';
 
 // --- Modales globales (viven en este nivel) ---
 import ModalAjustarPrecio from '../components/modals/ModalAjustarPrecio';
@@ -44,7 +47,6 @@ export default function DashboardPage() {
     const dashboard = useDashboardData();
     const user = useAuthStore((state) => state.user);
     const rol = user?.rol;
-    const [showImportar, setShowImportar] = React.useState(false);
 
     // --- TRÁFICO: El operario va directo al campo ---
     if (rol === 'operario') {
@@ -122,15 +124,11 @@ export default function DashboardPage() {
                             <h2 className="text-5xl font-black uppercase tracking-tighter text-slate-800">{dashboard.fincaActual?.nombre}</h2>
                         </div>
                         
-                        <div className="flex gap-4 items-center">
-                            {showImportar ? (
-                                <button onClick={() => setShowImportar(false)} className="text-sm font-black uppercase tracking-widest text-slate-400 hover:text-[#11261F]">← Volver al Dashboard</button>
-                            ) : (
-                                <button onClick={() => setShowImportar(true)} className="bg-white border-2 border-slate-200 text-[#11261F] px-6 py-3.5 rounded-xl text-xs font-black uppercase shadow-sm hover:border-[#8CB33E] transition-all flex items-center gap-2">
-                                    📥 Importar SINIGÁN (CSV)
-                                </button>
-                            )}
-                        </div>
+                        {dashboard.showImportar && (
+                            <div className="flex gap-4 items-center">
+                                <button onClick={() => dashboard.setShowImportar(false)} className="text-sm font-black uppercase tracking-widest text-slate-400 hover:text-[#11261F]">← Volver al Dashboard</button>
+                            </div>
+                        )}
 
                         {/* Solo el superadmin ve el tab-bar completo (Deprecated: Usando Sidebar ahora, pero mantenemos por si el usuario achica la pantalla luego lo volvemos responsive) */}
                         {/* 
@@ -148,13 +146,21 @@ export default function DashboardPage() {
                     </div>
 
                     {/* ════════ CONTENIDO POR ROL ════════ */}
-                    {showImportar ? (
+                    {dashboard.showImportar ? (
                         <ImportarGanado fincaSel={dashboard.fincaSel} />
+                    ) : dashboard.showMoverGanado ? (
+                        <MoverGanadoPage fincaSel={dashboard.fincaSel} onVolver={() => dashboard.setShowMoverGanado(false)} />
                     ) : (
                         <>
                             {rol === 'propietario' && <PropietarioHub dashboard={dashboard} />}
                             {rol === 'administrador' && <AdministradorHub dashboard={dashboard} />}
-                            {rol === 'contador'    && <ContadorHub dashboard={dashboard} />}
+                            {rol === 'contador' && (
+                                dashboard.fincaActual?.suscripcion_financiera_activa ? (
+                                    <ContadorHub dashboard={dashboard} />
+                                ) : (
+                                    <PaywallFinanciero rol={rol} />
+                                )
+                            )}
 
                             {/* Superadmin: vista con tabs completa (preservada del Sprint 1) */}
                             {rol === 'superadmin' && (
@@ -173,6 +179,8 @@ export default function DashboardPage() {
                                     )}
                                     {dashboard.activeTab === 'tierra'    && <TierraTab {...dashboard} />}
                                     {dashboard.activeTab === 'lotes'     && <LotesTab {...dashboard} />}
+                                    {dashboard.activeTab === 'equipo'    && <EquipoTab />}
+                                    {dashboard.activeTab === 'finanzas'  && <ContadorHub dashboard={dashboard} />}
                                     {dashboard.activeTab === 'nutricion' && <NutricionTab {...dashboard} />}
                                     {dashboard.activeTab === 'sanidad'   && <SanidadTab {...dashboard} />}
                                     {dashboard.activeTab === 'bodega'    && <BodegaTab {...dashboard} />}

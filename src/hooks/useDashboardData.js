@@ -23,6 +23,7 @@ export default function useDashboardData() {
     const [alertasInteligentes, setAlertasInteligentes] = useState([]);
     const [historialNutricion, setHistorialNutricion] = useState([]);
     const [lotesSeleccionadosMasivo, setLotesSeleccionadosMasivo] = useState([]);
+    const [equipoBackend, setEquipoBackend] = useState([]); // CRUD de Usuarios reales
     const [precioKilo, setPrecioKilo] = useState(8500); // <-- Precio dinámico por kg
     const [showModalPrecio, setShowModalPrecio] = useState(false);
 
@@ -34,12 +35,15 @@ export default function useDashboardData() {
     const [showSuministroModal, setShowSuministroModal] = useState(false);
     const [showConsumoModal, setShowConsumoModal] = useState(false);
     const [showTratamientoGrupalModal, setShowTratamientoGrupalModal] = useState(false);
+    const [showMoverGanado, setShowMoverGanado] = useState(false);
 
     const [showNuevoLoteModal, setShowNuevoLoteModal] = useState(false);
     const [nuevoLoteData, setNuevoLoteData] = useState({ nombre: '', tipo_manejo: 'General', gmd_meta: '' });
 
     const [showEditarLoteModal, setShowEditarLoteModal] = useState(false);
     const [loteEditData, setLoteEditData] = useState({ id_lote: '', nombre: '', tipo_manejo: '', gmd_meta: '' });
+
+    const [showImportar, setShowImportar] = useState(false);
 
     // ESTADOS PARA EDITAR BODEGA
     const [showEditarInsumoModal, setShowEditarInsumoModal] = useState(false);
@@ -105,6 +109,16 @@ export default function useDashboardData() {
         }
     }, [cleanId]);
 
+    // 👥 3. Carga exclusiva de Equipo (Usuarios)
+    const loadEquipo = useCallback(async () => {
+        if (!cleanId) return;
+        try {
+            const res = await api.get(`/usuarios/finca/${cleanId}`);
+            setEquipoBackend(res.data || []);
+        } catch (error) {
+            console.error("Error cargando equipo:", error);
+        }
+    }, [cleanId]);
     // 🏞️ 3. Carga exclusiva de Lotes
     const loadLotes = useCallback(async () => {
         if (!cleanId) return;
@@ -161,8 +175,16 @@ export default function useDashboardData() {
     // 🚀 6. El "Big Bang" (Arranque Inicial)
     const loadAllData = useCallback(async () => {
         if (!cleanId) return;
-        await Promise.all([loadAnimales(), loadInsumos(), loadLotes(), loadParametros(), fetchAnalytics(), loadNutricion()]);
-    }, [cleanId, loadAnimales, loadInsumos, loadLotes, loadParametros, fetchAnalytics, loadNutricion]);
+        await Promise.all([
+            loadAnimales(),
+            loadInsumos(),
+            loadLotes(),
+            loadParametros(),
+            loadNutricion(),
+            fetchAnalytics(),
+            loadEquipo()
+        ]);
+    }, [cleanId, loadAnimales, loadInsumos, loadLotes, loadParametros, loadNutricion, fetchAnalytics, loadEquipo]);
 
     // ✨ Efecto Mágico: Calcula Stats Reactivamente
     useEffect(() => {
@@ -613,6 +635,37 @@ export default function useDashboardData() {
     };
 
     // =========================================================================
+    // 👥 GESTIÓN DE PERSONAL (CRUD USUARIOS)
+    // =========================================================================
+    const handleCrearUsuario = async (nuevoUsuario) => {
+        try {
+            // El payload debe incluir finca_ids = [cleanId] para vincularlo a la finca actual
+            const payload = { ...nuevoUsuario, finca_ids: [parseInt(cleanId)] };
+            await api.post('/usuarios/', payload);
+            notifySuccess(`Usuario ${nuevoUsuario.nombre_usuario} creado exitosamente.`);
+            loadEquipo(); // Recargar la lista
+            if (typeof fetchAnalytics === 'function') fetchAnalytics();
+        } catch (error) {
+            console.error("Error al crear usuario:", error);
+            notifyError(error.response?.data?.detail || "Hubo un error al crear el usuario.");
+            throw error; // Para que el modal pueda mantener el estado abierto si hay error
+        }
+    };
+
+    const handleEliminarUsuario = async (id_usuario) => {
+        if (!window.confirm("¿Estás seguro de que deseas desactivar este usuario? Perderá el acceso a la plataforma.")) return;
+        try {
+            await api.delete(`/usuarios/${id_usuario}`);
+            notifySuccess("Usuario desactivado exitosamente.");
+            loadEquipo();
+            if (typeof fetchAnalytics === 'function') fetchAnalytics();
+        } catch (error) {
+            console.error("Error al desactivar usuario:", error);
+            notifyError(error.response?.data?.detail || "No tienes permisos o hubo un error.");
+        }
+    };
+
+    // =========================================================================
     // 🧮 MOTOR DE INTELIGENCIA DE LOTES (BIOMASA Y PROMEDIOS)
     // =========================================================================
 
@@ -661,16 +714,18 @@ export default function useDashboardData() {
         showEditarInsumoModal, setShowEditarInsumoModal, insumoEditData, setInsumoEditData,
         compraData, setCompraData, suministroData, setSuministroData,
         showNuevoProductoModal, setShowNuevoProductoModal, nuevoProductoData, setNuevoProductoData,
+        showMoverGanado, setShowMoverGanado,
         fincaActual, nombresExtraidos, nombresOficiales, lotesNombres,
         showImportarModal, setShowImportarModal, archivoPesajes, setArchivoPesajes,
         isUploading, setIsUploading, columnasCSV, setColumnasCSV, datosCSV, setDatosCSV,
         mapeo, setMapeo, showMapeoModal, setShowMapeoModal, cleanId,
-        loadAnimales, loadInsumos, loadLotes, loadParametros, loadAllData,
-        handleEliminarAnimal, handleEliminarInsumo, handleRegistrarCompra,
+        loadAnimales, loadInsumos, loadLotes, loadParametros, loadAllData, loadEquipo,
+        handleEliminarAnimal, showImportar, setShowImportar, handleEliminarInsumo, handleRegistrarCompra,
         handleRegistrarSalida, handleCrearInsumo, handleCrearLote, handleEliminarLote,
         handleGuardarEdicionLote, handleSuministro, toggleLoteMasivo,
         handleGuardarEdicionInsumo, handleArchivoSeleccionado, handleImportarPesajesMasivos,
         handleGuardarTratamientoGrupal, animalesSueltos, biomasaGeneral,
-        loteGeneralVirtual, lotesReales, lotesEnriquecidos, fetchAnalytics, equipoActividad
+        loteGeneralVirtual, lotesReales, lotesEnriquecidos, fetchAnalytics, equipoActividad,
+        equipoBackend, handleCrearUsuario, handleEliminarUsuario
     };
 }

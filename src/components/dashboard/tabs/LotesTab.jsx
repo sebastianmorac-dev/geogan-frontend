@@ -6,7 +6,8 @@ import { Search, Settings, Eye } from 'lucide-react';
 export default function LotesTab({ 
     selectedLote, lotesEnriquecidos, setShowImportarModal, setShowNuevoLoteModal,
     setSelectedLote, setLoteEditData, setShowEditarLoteModal,
-    setShowTratamientoGrupalModal, navigate, fincaSel, allAnimales, handleEliminarAnimal
+    setShowTratamientoGrupalModal, navigate, fincaSel, allAnimales, handleEliminarAnimal,
+    setShowMoverGanado, setShowImportar
 }) {
     const user = useAuthStore((state) => state.user);
     const esSuperadmin = user?.rol === 'superadmin';
@@ -33,8 +34,10 @@ export default function LotesTab({
                             </div>
                         </div>
                         <div className="flex gap-4 w-full md:w-auto">
+                            <button onClick={() => setShowMoverGanado(true)} className="bg-white border-2 border-[#E6F4D7] text-[#11261F] px-6 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm hover:border-[#8CB33E] transition-colors flex-1 md:flex-none">Rotar Ganado</button>
                             <button onClick={() => setShowImportarModal(true)} className="bg-white border-2 border-[#E6F4D7] text-[#11261F] px-6 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm hover:border-[#8CB33E] transition-colors flex-1 md:flex-none">Importar Pesajes</button>
-                            <RoleGuard allowedRoles={['superadmin', 'propietario', 'admin']}>
+                            <RoleGuard allowedRoles={['superadmin', 'propietario', 'admin', 'administrador']}>
+                                <button onClick={() => setShowImportar(true)} className="bg-[#E6F4D7] text-[#8CB33E] hover:bg-[#8CB33E] hover:text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-sm transition-colors flex-1 md:flex-none">📥 Importar SINIGÁN</button>
                                 <button onClick={() => setShowNuevoLoteModal(true)} className="bg-[#11261F] text-white px-6 py-2.5 rounded-xl text-[10px] font-black uppercase shadow-lg hover:bg-[#8CB33E] transition-colors flex-1 md:flex-none">+ Nuevo Lote</button>
                             </RoleGuard>
                         </div>
@@ -59,7 +62,7 @@ export default function LotesTab({
                                         lotesFiltrados.map(lote => {
                                             const pesoIdealVenta = 450;
                                             const pesoPromLote = lote.peso_promedio || 0;
-                                            const gmdEstimado = pesoPromLote > 0 ? pesoPromLote / 500 : 0;
+                                            const gmdReal = lote.gmd_promedio_lote || 0;
                                             const kgFaltantes = pesoIdealVenta - pesoPromLote;
                                             
                                             let estado = 'calculando';
@@ -69,8 +72,8 @@ export default function LotesTab({
                                             if (lote.cabezas_reales > 0) {
                                                 if (pesoPromLote >= pesoIdealVenta) {
                                                     estado = 'listo';
-                                                } else if (gmdEstimado > 0) {
-                                                    diasEst = Math.ceil(kgFaltantes / gmdEstimado);
+                                                } else if (gmdReal > 0) {
+                                                    diasEst = Math.ceil(kgFaltantes / gmdReal);
                                                     if (diasEst > 730) {
                                                         estado = 'inviable';
                                                     } else {
@@ -110,12 +113,19 @@ export default function LotesTab({
                                                         )}
                                                     </td>
                                                     
-                                                    {/* Inventario */}
+                                                    {/* Inventario / Descanso */}
                                                     <td className="px-6 py-4 text-center">
                                                         <div className="bg-[#F4F6F4] inline-block px-4 py-2 rounded-xl text-center">
                                                             <p className="text-xl font-black text-[#11261F] tabular-nums leading-none">{lote.cabezas_reales || 0}</p>
                                                             <p className="text-[8px] font-black text-gray-500 uppercase tracking-widest mt-1">Cabezas</p>
                                                         </div>
+                                                        {lote.cabezas_reales === 0 && lote.fecha_inicio_descanso && (
+                                                            <div className="mt-2 text-center">
+                                                                <span className="bg-blue-50 text-blue-700 px-2 py-1 rounded border border-blue-100 text-[9px] font-black uppercase tracking-widest inline-flex items-center gap-1">
+                                                                    🌿 {Math.floor((new Date() - new Date(lote.fecha_inicio_descanso)) / (1000 * 60 * 60 * 24))} días de descanso
+                                                                </span>
+                                                            </div>
+                                                        )}
                                                     </td>
                                                     
                                                     {/* Biomasa / Promedio */}

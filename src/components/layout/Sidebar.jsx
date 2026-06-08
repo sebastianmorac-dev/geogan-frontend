@@ -7,7 +7,9 @@ import {
     Syringe, 
     Package, 
     LogOut,
-    Users
+    Users,
+    UserCog,
+    BadgeDollarSign
 } from 'lucide-react';
 import useAuthStore from '../../store/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -17,6 +19,8 @@ const navItems = [
     { id: 'analitica', label: 'Visión Estratégica', icon: TrendingUp },
     { id: 'tierra', label: 'Mapeo de Tierra', icon: Map },
     { id: 'lotes', label: 'Gestión de Lotes', icon: Users },
+    { id: 'equipo', label: 'Mi Equipo', icon: UserCog },
+    { id: 'finanzas', label: 'Finanzas', icon: BadgeDollarSign },
     { id: 'nutricion', label: 'Nutrición', icon: Wheat },
     { id: 'sanidad', label: 'Sanidad', icon: Syringe },
     { id: 'bodega', label: 'Bodega', icon: Package }

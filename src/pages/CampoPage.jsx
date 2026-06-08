@@ -12,6 +12,7 @@ import ImportPesajeModal from '../components/modals/ImportPesajeModal';
 import MoverGanadoPage from './MoverGanadoPage';
 import { FlujoSanidad, FlujoNutricion } from './CampoComponents';
 import logo from '../assets/logo_geogan.png';
+import { saveOfflinePesaje, getPendingSyncCount, getOfflinePesajes, clearOfflinePesajes, deleteOfflinePesaje } from '../db/offlineStore';
 
 /**
  * CampoPage — Terminal de Campo para el Operario
@@ -38,6 +39,73 @@ export default function CampoPage() {
     // Estados del flujo de pesaje
     const [pesajeData, setPesajeData] = useState({ id_animal: '', peso: '' });
     const [enviando, setEnviando] = useState(false);
+    
+    // Estado Offline
+    const [isOffline, setIsOffline] = useState(!navigator.onLine);
+    const [pendingSync, setPendingSync] = useState(0);
+
+    // Detección de Red
+    useEffect(() => {
+        const handleOnline = () => setIsOffline(false);
+        const handleOffline = () => setIsOffline(true);
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, []);
+
+    // Cargar conteo pendiente al montar o cambiar red
+    const checkPending = async () => {
+        try {
+            const count = await getPendingSyncCount();
+            setPendingSync(count);
+        } catch(e) {}
+    };
+
+    useEffect(() => {
+        checkPending();
+    }, [vista, isOffline]);
+
+    // Sincronización automática
+    const handleSync = async () => {
+        if (isOffline) return;
+        try {
+            const pesajesPendientes = await getOfflinePesajes();
+            if (pesajesPendientes.length === 0) return;
+            
+            notifyWarning(`Sincronizando ${pesajesPendientes.length} registros pendientes...`);
+            let exito = 0;
+            for (let p of pesajesPendientes) {
+                try {
+                    await api.post(`/animales/${p.id_animal}/pesaje`, {
+                        peso_kg: p.peso,
+                        fecha_pesaje: p.fecha_pesaje,
+                        origen_dato: p.origen_dato
+                    });
+                    if (p.id_lote) {
+                        await api.put(`/animales/${p.id_animal}/lote`, { id_lote: parseInt(p.id_lote) });
+                    }
+                    await deleteOfflinePesaje(p.id);
+                    exito++;
+                } catch(e) {
+                    console.error("Error sincronizando:", e);
+                }
+            }
+            if (exito > 0) notifySuccess(`✅ Sincronizados ${exito} registros.`);
+            checkPending();
+            cargarAnimales();
+        } catch(e) {
+            console.error(e);
+        }
+    };
+
+    useEffect(() => {
+        if (!isOffline && pendingSync > 0) {
+            handleSync();
+        }
+    }, [isOffline, pendingSync]);
 
     // --- Carga de Fincas ---
     useEffect(() => {
@@ -117,8 +185,16 @@ export default function CampoPage() {
                 
                 {/* Información de Finca con manejo de estado y botones */}
                 <div className="flex items-center gap-4">
+                    {pendingSync > 0 && (
+                        <button onClick={handleSync} className="hidden md:flex bg-amber-100 text-amber-700 border border-amber-300 px-3 py-2 rounded-xl text-[10px] font-black uppercase hover:bg-amber-200 transition-colors gap-2 items-center">
+                            <UploadCloud className="w-4 h-4"/> Sync ({pendingSync})
+                        </button>
+                    )}
                     <div className="text-right hidden sm:block">
-                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold">Finca Activa</p>
+                        <p className="text-[10px] uppercase tracking-widest text-slate-400 font-bold flex items-center gap-2 justify-end">
+                            {isOffline ? <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span> : <span className="w-2 h-2 rounded-full bg-emerald-500"></span>}
+                            {isOffline ? 'Modo Offline' : 'Finca Activa'}
+                        </p>
                         <p className="text-slate-800 font-black text-sm truncate max-w-[150px]">
                             {fincaActual?.nombre || "Sin Finca"}
                         </p>
@@ -268,26 +344,37 @@ export default function CampoPage() {
 
             setEnviando(true);
             try {
-                // 1. Enviar el registro al backend
-                await api.post(`/animales/${animalFound.id_animal}/pesaje`, {
-                    peso_kg: peso,
-                    fecha_pesaje: new Date().toISOString().split('T')[0],
-                    origen_dato: isBluetooth ? 'BLUETOOTH' : 'MANUAL_CAMPO'
-                });
+                if (isOffline) {
+                    await saveOfflinePesaje({
+                        id_animal: animalFound.id_animal,
+                        peso: peso,
+                        fecha_pesaje: new Date().toISOString().split('T')[0],
+                        origen_dato: isBluetooth ? 'BLUETOOTH' : 'MANUAL_CAMPO',
+                        id_lote: loteSel || null
+                    });
+                    notifySuccess(`💾 ${animalFound.codigo_identificacion} pesó ${peso} kg (Guardado Offline).`);
+                    checkPending();
+                } else {
+                    // 1. Enviar el registro al backend
+                    await api.post(`/animales/${animalFound.id_animal}/pesaje`, {
+                        peso_kg: peso,
+                        fecha_pesaje: new Date().toISOString().split('T')[0],
+                        origen_dato: isBluetooth ? 'BLUETOOTH' : 'MANUAL_CAMPO'
+                    });
 
-                // 2. Si hay lote seleccionado y es distinto al actual, actualizamos el lote
-                if (loteSel && animalFound.id_lote !== parseInt(loteSel)) {
-                    await api.put(`/animales/${animalFound.id_animal}/lote`, { id_lote: parseInt(loteSel) });
+                    // 2. Si hay lote seleccionado y es distinto al actual, actualizamos el lote
+                    if (loteSel && animalFound.id_lote !== parseInt(loteSel)) {
+                        await api.put(`/animales/${animalFound.id_animal}/lote`, { id_lote: parseInt(loteSel) });
+                    }
+                    notifySuccess(`✅ ${animalFound.codigo_identificacion} pesó ${peso} kg.`);
                 }
 
-                notifySuccess(`✅ ${animalFound.codigo_identificacion} pesó ${peso} kg.`);
-                
                 // 3. Regla Inquebrantable: Guardado Continuo sin tocar pantalla
                 setChapetaInput('');
                 setPesoInput('');
                 setAnimalFound(null);
                 
-                cargarAnimales(); 
+                if (!isOffline) cargarAnimales(); 
                 
                 setTimeout(() => {
                     if (chapetaRef.current) chapetaRef.current.focus();

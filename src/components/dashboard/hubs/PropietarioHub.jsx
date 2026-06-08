@@ -2,60 +2,49 @@
 // WRAPPER ESTRATÉGICO: Visión Macro para el Dueño de la Finca
 // Monta ResumenTab y LotesTab sin modificar su lógica interna.
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import ResumenTab from '../tabs/ResumenTab';
 import LotesTab from '../tabs/LotesTab';
 import AnaliticaTab from '../tabs/AnaliticaTab';
 import GanadoEnTransito from '../GanadoEnTransito';
+import api from '../../../api/client';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-/**
- * PropietarioHub — Vista Estratégica del Propietario
- * 
- * Envuelve los componentes base (ResumenTab, LotesTab) con una capa de
- * "inteligencia predictiva" que traduce los datos crudos a lenguaje de negocio.
- * 
- * @param {Object} dashboard - Estado completo de useDashboardData()
- */
 export default function PropietarioHub({ dashboard }) {
-    // --- Motor de Predicciones Textuales ---
-    const lotesConGmd = (dashboard.lotesEnriquecidos || []).filter(l => l.gmd_meta && l.peso_promedio > 0);
-    
-    const predicciones = lotesConGmd.map(lote => {
-        const pesoPromedio = lote.peso_promedio || 0;
-        const gmdMeta = parseFloat(lote.gmd_meta) || 0;
-        // Heurística: Si el peso promedio crece al menos al 80% de la meta, la tendencia es positiva
-        const gmdEstimado = pesoPromedio > 0 ? pesoPromedio / 500 : 0;
-        const rendimiento = gmdMeta > 0 ? (gmdEstimado / gmdMeta) * 100 : 0;
+    const { fincaSel } = dashboard;
+    const [historico, setHistorico] = useState([]);
+    const [proyecciones, setProyecciones] = useState(null);
 
-        let tendencia = 'neutral';
-        let sugerencia = 'Faltan datos para proyectar.';
-        let badgeColor = 'bg-slate-100 text-slate-600';
-
-        if (rendimiento >= 100) {
-            tendencia = 'sobresaliente';
-            sugerencia = 'Mantener ración actual. Evaluar venta temprana.';
-            badgeColor = 'bg-amber-100 text-amber-700 border-amber-300';
-        } else if (rendimiento >= 80) {
-            tendencia = 'positiva';
-            sugerencia = 'Mantener ración. El ganado responde bien.';
-            badgeColor = 'bg-emerald-100 text-emerald-700 border-emerald-300';
-        } else if (rendimiento >= 50) {
-            tendencia = 'moderada';
-            sugerencia = 'Considerar ajuste de alimentación o suplemento.';
-            badgeColor = 'bg-blue-100 text-blue-700 border-blue-300';
-        } else if (rendimiento > 0) {
-            tendencia = 'crítica';
-            sugerencia = 'Alerta: revisar calidad del pasto y posibles enfermedades.';
-            badgeColor = 'bg-red-100 text-red-700 border-red-300';
-        }
-
-        return { lote: lote.nombre, tendencia, sugerencia, rendimiento: rendimiento.toFixed(0), badgeColor };
-    });
+    useEffect(() => {
+        if (!fincaSel) return;
+        const fetchDatos = async () => {
+            try {
+                const [resHistorico, resProyecciones] = await Promise.all([
+                    api.get(`/api/v1/analytics/financiero/${fincaSel}/historico`),
+                    api.get(`/api/v1/analytics/proyecciones/${fincaSel}`)
+                ]);
+                
+                // Formatear histórico para la gráfica
+                const dataFormat = resHistorico.data.map(item => ({
+                    fecha: new Date(item.fecha_cierre).toLocaleDateString('es-CO', { month: 'short', day: 'numeric' }),
+                    Capital: parseFloat(item.capital_biologico),
+                    Utilidad: parseFloat(item.utilidad_biologica)
+                }));
+                setHistorico(dataFormat);
+                setProyecciones(resProyecciones.data);
+            } catch (error) {
+                console.error("Error cargando analítica avanzada", error);
+            }
+        };
+        fetchDatos();
+    }, [fincaSel]);
 
     // --- KPIs Estratégicos ---
     const totalCabezas = dashboard.stats?.total || 0;
     const valorEstimado = dashboard.stats?.valorLote || '0';
     const biomasaTotal = (dashboard.lotesEnriquecidos || []).reduce((sum, l) => sum + (l.biomasa_total || 0), 0);
+
+    const formatMoney = (val) => new Intl.NumberFormat('es-CO', { style: 'currency', currency: 'COP', maximumFractionDigits: 0 }).format(val);
 
     return (
         <div className="space-y-8">
@@ -79,6 +68,73 @@ export default function PropietarioHub({ dashboard }) {
                             <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest mb-2">Población Activa</p>
                             <p className="text-3xl font-black italic text-white">{Number(totalCabezas).toLocaleString('es-CO')} <span className="text-base font-bold text-gray-400">cabezas</span></p>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* SECCIÓN DE INTELIGENCIA Y PROYECCIÓN */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                {/* GRÁFICA DE PATRIMONIO HISTÓRICO */}
+                <div className="bg-white rounded-[32px] p-8 border border-[#E6F4D7] shadow-sm">
+                    <h3 className="text-xl font-black text-[#11261F] uppercase tracking-tight mb-6 flex items-center gap-2">
+                        <span className="text-[#8CB33E]">📈</span> Evolución Patrimonial
+                    </h3>
+                    <div className="h-64">
+                        {historico.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={historico} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorCapital" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#8CB33E" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#8CB33E" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                                    <XAxis dataKey="fecha" axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} />
+                                    <YAxis axisLine={false} tickLine={false} tick={{fontSize: 10, fill: '#94a3b8'}} tickFormatter={(v) => `$${(v/1000000).toFixed(0)}M`} />
+                                    <Tooltip formatter={(value) => formatMoney(value)} />
+                                    <Area type="monotone" dataKey="Capital" stroke="#8CB33E" strokeWidth={3} fillOpacity={1} fill="url(#colorCapital)" />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <div className="flex items-center justify-center h-full text-slate-400 text-sm font-bold border-2 border-dashed rounded-xl border-slate-200">
+                                Sin datos históricos suficientes.
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* WIDGET DE PROYECCIÓN DE VENTAS */}
+                <div className="bg-white rounded-[32px] p-8 border border-[#E6F4D7] shadow-sm">
+                    <h3 className="text-xl font-black text-[#11261F] uppercase tracking-tight mb-2 flex items-center gap-2">
+                        <span className="text-blue-500">🔮</span> Proyección de Ventas
+                    </h3>
+                    <p className="text-xs text-slate-500 font-bold mb-6">
+                        Estimación basada en GMD hacia meta de {proyecciones?.peso_meta_referencia || 450}kg.
+                    </p>
+                    <div className="space-y-4 max-h-64 overflow-y-auto pr-2">
+                        {proyecciones?.proyecciones?.length > 0 ? (
+                            proyecciones.proyecciones.map((proy, idx) => (
+                                <div key={idx} className="bg-slate-50 rounded-2xl p-4 border border-slate-100 flex items-center justify-between">
+                                    <div>
+                                        <p className="font-black text-[#11261F] text-sm uppercase">{proy.nombre_lote}</p>
+                                        <p className="text-[10px] text-slate-500 font-bold mt-1">
+                                            {proy.cabezas} Cabezas • {proy.peso_promedio_actual}kg actual
+                                        </p>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-sm font-black text-blue-600">En {proy.dias_estimados_restantes} días</p>
+                                        <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1">
+                                            {formatMoney(proy.valor_estimado_venta)}
+                                        </p>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="flex items-center justify-center py-10 text-slate-400 text-sm font-bold border-2 border-dashed rounded-xl border-slate-200">
+                                No hay lotes de ceba activos o pesajes.
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>

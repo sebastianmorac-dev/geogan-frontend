@@ -30,6 +30,9 @@ export default function HojaDeVidaAnimal() {
     const [showTrazabilidadModal, setShowTrazabilidadModal] = useState(false);
     const trazabilidadForm = useForm();
 
+    const [showSalidaModal, setShowSalidaModal] = useState(false);
+    const salidaForm = useForm();
+
     const fromFinca = location.state?.fromFinca;
     const fromTab = location.state?.fromTab || 'lotes';
     const fromLote = location.state?.fromLote;
@@ -272,6 +275,21 @@ export default function HojaDeVidaAnimal() {
         setShowPesoModal(true);
     };
 
+    const onSalidaSubmit = async (data) => {
+        if (!window.confirm(`¿Estás seguro de registrar la salida de este animal por motivo: ${data.estado}?`)) return;
+        try {
+            await api.patch(`/animales/${id}/dar-baja`, {
+                estado: data.estado,
+                fecha_salida: new Date().toISOString().split('T')[0],
+                precio_venta: data.precio_venta ? parseFloat(data.precio_venta) : null,
+                peso_salida: animalData?.peso ? parseFloat(animalData.peso) : null,
+                detalle_salida: data.detalle_salida
+            });
+            setShowSalidaModal(false);
+            fetchDatos();
+        } catch (err) { alert(err.response?.data?.detail || "Error al registrar la salida"); }
+    };
+
 
 
     if (loading) return (
@@ -423,12 +441,17 @@ export default function HojaDeVidaAnimal() {
                             + Registrar Peso / Novedad
                         </button>
 
-                        {/* RBAC: Solo Admins y Propietarios pueden acceder al formulario de edición */}
+                        {/* RBAC: Solo Admins y Propietarios pueden acceder al formulario de edición y bajas */}
                         <RoleGuard allowedRoles={['superadmin', 'propietario', 'admin']}>
                             <button
                                 onClick={() => navigate(`/animales/editar/${id}`, { state: { fromFinca, fromTab, fromLote, nombreFinca } })}
-                                className="w-full bg-white border-2 border-[#E6F4D7] text-gray-500 py-5 rounded-2xl font-black uppercase text-xs tracking-widest hover:border-[#8CB33E] hover:text-[#11261F] transition-all">
+                                className="w-full bg-white border-2 border-[#E6F4D7] text-gray-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:border-[#8CB33E] hover:text-[#11261F] transition-all">
                                 ⚙️ Editar Perfil Base
+                            </button>
+                            <button
+                                onClick={() => setShowSalidaModal(true)}
+                                className="w-full bg-white border-2 border-red-100 text-red-500 py-4 rounded-2xl font-black uppercase text-xs tracking-widest hover:border-red-500 hover:text-white transition-all">
+                                🚪 Registrar Salida / Baja
                             </button>
                         </RoleGuard>
                     </div>
@@ -776,6 +799,42 @@ export default function HojaDeVidaAnimal() {
 
                     <button type="submit" disabled={isSubmitting} className="w-full bg-[#8CB33E] text-white py-5 rounded-[24px] font-black uppercase text-xs tracking-widest shadow-lg hover:bg-[#11261F] transition-all active:scale-95">
                         {isSubmitting ? 'Guardando...' : 'Guardar Pesaje'}
+                    </button>
+                </form>
+            </ModalOverlay>
+            {/* ========================================================================= */}
+            {/* 🚪 MODAL: REGISTRAR SALIDA / BAJA                                         */}
+            {/* ========================================================================= */}
+            <ModalOverlay isOpen={showSalidaModal} onClose={() => setShowSalidaModal(false)} title="REGISTRAR SALIDA" maxWidth="md">
+                <form onSubmit={salidaForm.handleSubmit(onSalidaSubmit)} className="space-y-6">
+                    <div className="bg-red-50 border-2 border-red-200 p-4 rounded-2xl mb-4">
+                        <p className="text-[10px] font-black text-red-600 uppercase tracking-widest text-center">Auditoría de Inventario</p>
+                        <p className="text-xs text-red-800 text-center mt-1 font-bold">Esta acción retirará al animal del potrero activo pero conservará su historia contable.</p>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Motivo de Salida</label>
+                        <select {...salidaForm.register('estado')} className="w-full bg-[#F4F6F4] rounded-2xl p-5 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]">
+                            <option value="vendido">Vendido / Comercio</option>
+                            <option value="muerto">Muerto / Baja</option>
+                            <option value="robo">Robo / Pérdida</option>
+                            <option value="consumo">Consumo Interno</option>
+                        </select>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Valor de Venta ($) (Opcional)</label>
+                            <input type="number" {...salidaForm.register('precio_venta')} className="w-full bg-[#F4F6F4] rounded-2xl p-5 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]" placeholder="Ej: 3500000" />
+                        </div>
+                        <div className="space-y-2">
+                            <label className="text-[10px] font-black text-gray-400 uppercase ml-2">Detalles Adicionales</label>
+                            <input {...salidaForm.register('detalle_salida')} className="w-full bg-[#F4F6F4] rounded-2xl p-5 text-sm font-black outline-none border-2 border-transparent focus:border-[#8CB33E]" placeholder="Ej: Comprador X, o causa de muerte" />
+                        </div>
+                    </div>
+
+                    <button type="submit" disabled={salidaForm.formState.isSubmitting} className="w-full bg-red-600 text-white py-6 rounded-[28px] font-black uppercase text-xs tracking-widest hover:bg-red-700 transition-all shadow-xl">
+                        {salidaForm.formState.isSubmitting ? 'Registrando Salida...' : 'Confirmar Salida Definitiva'}
                     </button>
                 </form>
             </ModalOverlay>

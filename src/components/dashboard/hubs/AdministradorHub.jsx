@@ -7,6 +7,7 @@ import LotesTab from '../tabs/LotesTab';
 import SanidadTab from '../tabs/SanidadTab';
 import GanadoEnTransito from '../GanadoEnTransito';
 import { notifyWarning } from '../../../utils/notify';
+import { exportToExcel } from '../../../utils/export';
 
 /**
  * AdministradorHub — Vista de Gestión para el Encargado / Administrador
@@ -21,9 +22,54 @@ export default function AdministradorHub({ dashboard }) {
     const totalLotes = (dashboard.lotesEnriquecidos || []).length;
     const animalesEnCuarentena = (dashboard.allAnimales || []).filter(a => a.apto_para_consumo === false).length;
 
-    // --- Botones de Reporte (Inactivos, listos para conectar al backend) ---
+    // --- Botones de Reporte (Conectados a Exportación Excel) ---
     const handleReporteSINIGAN = (tipo) => {
-        notifyWarning(`🚧 Reporte "${tipo}" en desarrollo. Estará disponible cuando el backend lo habilite.`);
+        if (!dashboard.allAnimales || dashboard.allAnimales.length === 0) {
+            notifyWarning("No hay datos suficientes para generar este reporte.");
+            return;
+        }
+
+        if (tipo === 'Inventario Ganadero Semestral') {
+            const data = dashboard.allAnimales.map(a => ({
+                "ID Animal": a.id_animal,
+                "Chapeta": a.codigo_identificacion,
+                "Raza": a.raza || "N/A",
+                "Sexo": a.sexo,
+                "Peso Actual (kg)": a.peso || 0,
+                "Estado": a.estado,
+                "Lote": a.nombre_lote || "General",
+                "Apto para Consumo": a.apto_para_consumo ? "SÍ" : "NO"
+            }));
+            exportToExcel(data, "Inventario_Ganadero_SINIGAN");
+        } else if (tipo === 'Movilización de Ganado') {
+            const transito = dashboard.allAnimales.filter(a => a.estado === 'en_transito');
+            if (transito.length === 0) {
+                notifyWarning("No hay ganado en tránsito para generar guía.");
+                return;
+            }
+            const data = transito.map(a => ({
+                "Chapeta": a.codigo_identificacion,
+                "Raza": a.raza || "N/A",
+                "Sexo": a.sexo,
+                "Peso": a.peso || 0
+            }));
+            exportToExcel(data, "Guia_Movilizacion");
+        } else if (tipo === 'Registro de Nacimientos') {
+            const nacimientos = dashboard.allAnimales.filter(a => a.origen === 'NACIMIENTO');
+            if (nacimientos.length === 0) {
+                notifyWarning("No hay nacimientos registrados.");
+                return;
+            }
+            const data = nacimientos.map(a => ({
+                "Chapeta": a.codigo_identificacion,
+                "Fecha Nacimiento": a.fecha_nacimiento,
+                "Raza": a.raza || "N/A",
+                "Sexo": a.sexo
+            }));
+            exportToExcel(data, "Registro_Nacimientos");
+        } else {
+            notifyWarning(`🚧 Reporte "${tipo}" está siendo adaptado para PDF.`);
+        }
     };
 
     return (

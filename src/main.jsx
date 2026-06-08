@@ -4,6 +4,12 @@ import { BrowserRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App.jsx';
 import './index.css';
+import { registerSW } from 'virtual:pwa-register';
+
+// Registro del Service Worker para PWA
+if ('serviceWorker' in navigator) {
+  registerSW({ immediate: true });
+}
 
 /**
  * QueryClient — GeoGan
